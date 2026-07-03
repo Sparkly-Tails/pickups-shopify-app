@@ -7,6 +7,7 @@ import { syncSubscription } from '@/lib/syncSubscription'
 function verifySignature(body: string, signature: string): boolean {
   const secret = process.env.LOOP_WEBHOOK_SECRET!
   const expected = crypto.createHmac('sha256', secret).update(body).digest('hex')
+  if (signature.length !== expected.length) return false
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
 }
 
