@@ -98,8 +98,7 @@ KLAVIYO_API_KEY=pk_xxxxxxxxxxxxx
 
 # App
 PICKUP_APP_SECRET=generate_a_random_32_char_string_here
-NEXT_PUBLIC_PICKUP_APP_SECRET=same_value_as_above
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+APP_URL=http://localhost:3000
 ```
 
 **How to get each value:**
@@ -895,7 +894,7 @@ git commit -m "feat: subscriptions and pickups API routes"
 
 **Files:**
 - Modify: `src/app/page.tsx`
-- Create: `src/app/pickup/[subscriptionId]/page.tsx`, `src/components/SubscriptionCard.tsx`, `src/components/PickupForm.tsx`
+- Create: `src/app/pickup/[subscriptionId]/page.tsx`, `src/components/SubscriptionCard.tsx`, `src/components/PickupForm.tsx`, `src/app/actions/confirmPickup.ts`
 
 **Interfaces:**
 - Consumes: `GET /api/subscriptions?dueThisWeek=true`, `GET /api/subscriptions/:id`, `POST /api/pickups`
@@ -912,7 +911,7 @@ import SubscriptionCard from '@/components/SubscriptionCard'
 
 async function getSubscriptions(): Promise<ISubscription[]> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/subscriptions?dueThisWeek=true`,
+    `${process.env.APP_URL}/api/subscriptions?dueThisWeek=true`,
     { headers: { Authorization: `Bearer ${process.env.PICKUP_APP_SECRET}` }, cache: 'no-store' }
   )
   return res.json()
@@ -984,7 +983,7 @@ import PickupForm from '@/components/PickupForm'
 
 async function getData(id: string): Promise<{ subscription: ISubscription; recentPickups: IPickupEvent[] }> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/subscriptions/${id}`,
+    `${process.env.APP_URL}/api/subscriptions/${id}`,
     { headers: { Authorization: `Bearer ${process.env.PICKUP_APP_SECRET}` }, cache: 'no-store' }
   )
   if (!res.ok) notFound()
@@ -1014,7 +1013,79 @@ export default async function PickupPage({ params }: { params: Promise<{ subscri
 }
 ```
 
-- [ ] **Step 4: PickupForm**
+- [ ] **Step 4: Server Action for pickup confirmation**
+
+Create `src/app/actions/confirmPickup.ts`:
+
+```typescript
+'use server'
+
+import { connectDB } from '@/lib/mongodb'
+import { PickupEventModel, IPickupItem } from '@/models/PickupEvent'
+import { SubscriptionModel } from '@/models/Subscription'
+import { sendPickupConfirmedEvent } from '@/lib/klaviyo'
+
+export interface ConfirmPickupInput {
+  subscriptionId: string
+  date: string
+  weekNumber: number
+  subscriptionMonth: string
+  notes: string
+  items: IPickupItem[]
+}
+
+export async function confirmPickup(input: ConfirmPickupInput): Promise<{ ok: boolean; emailSent: boolean }> {
+  await connectDB()
+  const sub = await SubscriptionModel.findById(input.subscriptionId)
+  if (!sub) throw new Error('Subscription not found')
+
+  const event = await PickupEventModel.create({
+    subscriptionId: input.subscriptionId,
+    customerId: sub.customerId,
+    customerName: sub.customer.name,
+    date: new Date(input.date),
+    weekNumber: input.weekNumber,
+    subscriptionMonth: input.subscriptionMonth,
+    notes: input.notes,
+    emailSent: false,
+    items: input.items,
+  })
+
+  const itemsPickedUp = input.items
+    .filter(i => !i.escaped)
+    .map(i => ({
+      product: i.replacement?.name ?? i.productName,
+      quantity: i.qty,
+      unit: i.unit,
+      ...(i.replacement ? { replaced_for: i.productName } : {}),
+    }))
+
+  const pickedUpNames = new Set(input.items.filter(i => !i.escaped).map(i => i.productName))
+  const itemsRemaining = sub.lines
+    .filter(l => !pickedUpNames.has(l.productName))
+    .map(l => ({ product: l.productName, quantity: l.qty, unit: l.unit }))
+
+  let emailSent = false
+  try {
+    await sendPickupConfirmedEvent({
+      email: sub.customer.email,
+      customerName: sub.customer.name,
+      weekNumber: input.weekNumber,
+      subscriptionMonth: input.subscriptionMonth,
+      itemsPickedUp,
+      itemsRemaining,
+    })
+    await PickupEventModel.updateOne({ _id: event._id }, { emailSent: true })
+    emailSent = true
+  } catch (err) {
+    console.error('Klaviyo error:', err)
+  }
+
+  return { ok: true, emailSent }
+}
+```
+
+- [ ] **Step 5: PickupForm**
 
 Create `src/components/PickupForm.tsx`:
 
@@ -1024,6 +1095,7 @@ Create `src/components/PickupForm.tsx`:
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ISubscription } from '@/models/Subscription'
+import { confirmPickup } from '@/app/actions/confirmPickup'
 
 interface ItemState {
   productName: string
@@ -1064,20 +1136,13 @@ export default function PickupForm({
 
   async function handleSubmit() {
     setSubmitting(true)
-    await fetch('/api/pickups', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.NEXT_PUBLIC_PICKUP_APP_SECRET}`,
-      },
-      body: JSON.stringify({
-        subscriptionId: subscription._id,
-        date: new Date().toISOString(),
-        weekNumber,
-        subscriptionMonth,
-        notes,
-        items,
-      }),
+    await confirmPickup({
+      subscriptionId: subscription._id,
+      date: new Date().toISOString(),
+      weekNumber,
+      subscriptionMonth,
+      notes,
+      items,
     })
     setSubmitting(false)
     setDone(true)
@@ -1194,7 +1259,7 @@ import { IPickupEvent } from '@/models/PickupEvent'
 
 async function getPickups(): Promise<IPickupEvent[]> {
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/pickups`,
+    `${process.env.APP_URL}/api/pickups`,
     { headers: { Authorization: `Bearer ${process.env.PICKUP_APP_SECRET}` }, cache: 'no-store' }
   )
   return res.json()
@@ -1316,7 +1381,7 @@ npx vercel login
 npx vercel --prod
 ```
 
-In Vercel dashboard → Project → Settings → Environment Variables — add all variables from `.env.local`. Set `NEXT_PUBLIC_APP_URL` to the Vercel deployment URL (e.g., `https://sparkly-tails-pickup.vercel.app`).
+In Vercel dashboard → Project → Settings → Environment Variables — add all variables from `.env.local`. Set `APP_URL` to the Vercel deployment URL (e.g., `https://sparkly-tails-pickup.vercel.app`).
 
 Redeploy after adding env vars:
 
