@@ -35,6 +35,7 @@ export default function PickupForm({
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   function toggleEscaped(idx: number) {
     setItems(prev =>
@@ -44,16 +45,22 @@ export default function PickupForm({
 
   async function handleSubmit() {
     setSubmitting(true)
-    await confirmPickup({
-      subscriptionId: subscription._id,
-      date: new Date().toISOString(),
-      weekNumber,
-      subscriptionMonth,
-      notes,
-      items,
-    })
-    setSubmitting(false)
-    setDone(true)
+    try {
+      const result = await confirmPickup({
+        subscriptionId: subscription._id,
+        date: new Date().toISOString(),
+        weekNumber,
+        subscriptionMonth,
+        notes,
+        items,
+      })
+      setEmailSent(result.emailSent)
+      setDone(true)
+    } catch (err) {
+      console.error('Pickup failed:', err)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (done) {
@@ -61,7 +68,11 @@ export default function PickupForm({
       <div className="text-center py-12">
         <p className="text-4xl mb-3">✓</p>
         <p className="text-lg font-semibold">Pickup confirmed!</p>
-        <p className="text-sm text-gray-500 mb-6">Email sent to {subscription.customer.email}</p>
+        <p className="text-sm text-gray-500 mb-6">
+          {emailSent
+            ? `Email sent to ${subscription.customer.email}`
+            : 'Pickup saved (email not sent)'}
+        </p>
         <button onClick={() => router.push('/')} className="text-blue-600 text-sm">
           ← Back to list
         </button>
