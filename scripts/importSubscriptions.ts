@@ -1,19 +1,19 @@
 import 'dotenv/config'
 import { connectDB } from '../src/lib/mongodb'
-import { loopGetAllActiveSubscriptions } from '../src/lib/loop'
+import { getAllSubscriptionContracts } from '../src/lib/shopify'
 import { syncSubscription } from '../src/lib/syncSubscription'
 
 async function main() {
   await connectDB()
-  console.log('Fetching active subscriptions from Loop…')
-  const subs = await loopGetAllActiveSubscriptions()
-  console.log(`Found ${subs.length} subscriptions. Syncing…`)
-  for (const sub of subs) {
+  console.log('Fetching subscription contracts from Shopify…')
+  const contracts = await getAllSubscriptionContracts()
+  console.log(`Found ${contracts.length} contracts. Syncing…`)
+  for (const contract of contracts) {
     try {
-      await syncSubscription(sub.id)
-      console.log(`✓ ${sub.id}`)
+      await syncSubscription(contract.id)
+      console.log(`✓ ${contract.id}`)
     } catch (err) {
-      console.error(`✗ ${sub.id}:`, err)
+      console.error(`✗ ${contract.id}:`, err)
     }
   }
   console.log('Done.')
