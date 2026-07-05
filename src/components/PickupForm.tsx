@@ -32,6 +32,8 @@ export default function PickupForm({
     }))
   )
   const [notes, setNotes] = useState('')
+  const [testMode, setTestMode] = useState(false)
+  const [testEmail, setTestEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
@@ -57,7 +59,12 @@ export default function PickupForm({
         status: i.status,
         replacement: i.status === 'swapped' ? { name: i.replacement.trim() } : null,
       }))
-      const result = await confirmPickup({ customerId, notes, items: payload })
+      const result = await confirmPickup({
+        customerId,
+        notes,
+        items: payload,
+        testEmail: testMode ? testEmail : undefined,
+      })
       setEmailSent(result.emailSent)
       setDone(true)
     } catch (err) {
@@ -135,6 +142,28 @@ export default function PickupForm({
         className="w-full border rounded-xl p-3 text-sm resize-none"
         rows={3}
       />
+
+      {/* Test mode */}
+      <div className="border rounded-xl p-3 bg-gray-50 space-y-2">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={testMode}
+            onChange={e => setTestMode(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <span className="text-sm text-gray-600">Send test email instead</span>
+        </label>
+        {testMode && (
+          <input
+            type="email"
+            value={testEmail}
+            onChange={e => setTestEmail(e.target.value)}
+            placeholder="test@example.com"
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+          />
+        )}
+      </div>
 
       <button
         onClick={handleSubmit}

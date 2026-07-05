@@ -9,6 +9,7 @@ export interface ConfirmPickupInput {
   customerId: string
   notes: string
   items: IPickupItem[]
+  testEmail?: string
 }
 
 function calcRemaining(
@@ -80,20 +81,20 @@ export async function confirmPickup(
     .map(i => ({
       product: i.replacement?.name ?? i.productName,
       quantity: i.qty,
-      unit: '',
+      unit: i.qty === 1 ? 'item' : 'items',
       ...(i.status === 'swapped' ? { replaced_for: i.productName } : {}),
     }))
 
   const itemsRemaining = remaining.map(i => ({
     product: i.productName,
     quantity: i.qty,
-    unit: '',
+    unit: i.qty === 1 ? 'item' : 'items',
   }))
 
   let emailSent = false
   try {
     await sendPickupConfirmedEvent({
-      email: customer.email,
+      email: input.testEmail?.trim() || customer.email,
       customerName: customer.name,
       weekNumber,
       subscriptionMonth,
