@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { IOrderItem } from '@/models/Customer'
 import { IPickupItem } from '@/models/PickupEvent'
 import { confirmPickup } from '@/app/actions/confirmPickup'
@@ -22,7 +22,6 @@ export default function PickupForm({
   customerEmail: string
   remainingItems: IOrderItem[]
 }) {
-  const router = useRouter()
   const [items, setItems] = useState<ItemState[]>(
     remainingItems.map(i => ({
       productName: i.productName,
@@ -37,6 +36,7 @@ export default function PickupForm({
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [swapError, setSwapError] = useState<number | null>(null)
 
   function setStatus(idx: number, status: 'picked' | 'skipped' | 'swapped') {
     setItems(prev => prev.map((item, i) => (i === idx ? { ...item, status } : item)))
@@ -47,10 +47,12 @@ export default function PickupForm({
   }
 
   async function handleSubmit() {
-    if (items.some(i => i.status === 'swapped' && !i.replacement.trim())) {
-      alert('Please enter a replacement product name for all swapped items.')
+    const missingIdx = items.findIndex(i => i.status === 'swapped' && !i.replacement.trim())
+    if (missingIdx !== -1) {
+      setSwapError(missingIdx)
       return
     }
+    setSwapError(null)
     setSubmitting(true)
     try {
       const payload: IPickupItem[] = items.map(i => ({
@@ -83,9 +85,9 @@ export default function PickupForm({
         <p className="text-sm text-gray-500 mb-6">
           {emailSent ? `Email sent to ${customerEmail}` : 'Pickup saved (email not sent)'}
         </p>
-        <button onClick={() => router.push('/')} className="text-blue-600 text-sm">
+        <Link href="/" className="text-blue-600 text-sm">
           ← Back to list
-        </button>
+        </Link>
       </div>
     )
   }
@@ -106,8 +108,9 @@ export default function PickupForm({
               {(['picked', 'skipped', 'swapped'] as const).map(s => (
                 <button
                   key={s}
-                  onClick={() => setStatus(idx, s)}
-                  className={`text-xs px-2 py-1 rounded-full border capitalize transition-colors ${
+                  aria-pressed={item.status === s}
+                  onClick={() => { setStatus(idx, s); if (swapError === idx) setSwapError(null) }}
+                  className={`text-xs px-3 py-2 min-h-[36px] rounded-full border capitalize transition-colors ${
                     item.status === s
                       ? s === 'picked'
                         ? 'bg-green-100 text-green-700 border-green-300'
@@ -124,13 +127,18 @@ export default function PickupForm({
           </div>
 
           {item.status === 'swapped' && (
-            <input
-              type="text"
-              placeholder="Replacement product name"
-              value={item.replacement}
-              onChange={e => setReplacement(idx, e.target.value)}
-              className="mt-2 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            />
+            <div className="mt-2">
+              <input
+                type="text"
+                placeholder="Replacement product name"
+                value={item.replacement}
+                onChange={e => { setReplacement(idx, e.target.value); if (swapError === idx) setSwapError(null) }}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 ${swapError === idx ? 'border-red-400' : ''}`}
+              />
+              {swapError === idx && (
+                <p className="mt-1 text-xs text-red-500">Enter a replacement product name.</p>
+              )}
+            </div>
           )}
         </div>
       ))}

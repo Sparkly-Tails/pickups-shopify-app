@@ -52,7 +52,7 @@ export default async function Home() {
   }
 
   return (
-    <main className="max-w-lg mx-auto p-4">
+    <main className="w-[70%] max-w-2xl mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Pickups</h1>
         <Link href="/dashboard" className="text-sm text-blue-600">
@@ -87,7 +87,12 @@ export default async function Home() {
       )}
 
       {inProgress.length === 0 && needNewCycle.length === 0 && (
-        <p className="text-gray-500 text-center py-12">No active customers yet.</p>
+        <div className="text-center py-12">
+          <p className="text-gray-500 mb-2">No active customers yet.</p>
+          <Link href="/customer/new" className="text-sm text-blue-600 hover:underline">
+            Add your first customer →
+          </Link>
+        </div>
       )}
 
       <Link
@@ -104,10 +109,19 @@ function CustomerRow({ customer, dim }: { customer: ICustomer; dim?: boolean }) 
   return (
     <Link
       href={`/customer/${customer._id}`}
-      className={`block border rounded-xl p-4 bg-white hover:bg-gray-50 transition-colors ${dim ? 'opacity-60' : ''}`}
+      className="block border rounded-xl p-4 bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
     >
-      <p className="font-semibold">{customer.name}</p>
-      <p className="text-sm text-gray-500">{customer.email}</p>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="font-semibold text-gray-700 dark:text-gray-200">{customer.name}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{customer.email}</p>
+        </div>
+        {dim && (
+          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            New cycle
+          </span>
+        )}
+      </div>
     </Link>
   )
 }

@@ -57,7 +57,7 @@ export default async function CustomerPage({
       {/* Header */}
       <div className="flex items-center gap-3 mb-1">
         <Link href="/" className="text-blue-600 text-sm">← Back</Link>
-        <h1 className="text-xl font-bold flex-1">{customer.name}</h1>
+        <h1 className="text-xl font-bold flex-1 text-gray-500">{customer.name}</h1>
         <span
           className={`text-xs px-2 py-1 rounded-full ${
             customer.status === 'active'
@@ -97,7 +97,7 @@ export default async function CustomerPage({
           </h2>
           <div className="space-y-3">
             {pickupHistory.map(event => (
-              <div key={String(event._id)} className="border rounded-xl p-4 bg-white">
+              <div key={String(event._id)} className="border rounded-xl p-4 bg-white dark:bg-gray-800 dark:border-gray-700">
                 <div className="flex justify-between items-start">
                   <p className="text-sm font-medium">
                     {new Date(event.date).toLocaleDateString('en-GB', {
