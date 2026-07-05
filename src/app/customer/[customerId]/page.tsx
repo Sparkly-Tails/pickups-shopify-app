@@ -79,7 +79,11 @@ export default async function CustomerPage({
           <PickupForm
             customerId={customerId}
             customerEmail={customer.email}
-            remainingItems={remainingItems}
+            remainingItems={remainingItems.map(i => ({
+              shopifyLineItemId: i.shopifyLineItemId,
+              productName: i.productName,
+              qty: i.qty,
+            }))}
           />
         </section>
       ) : (
