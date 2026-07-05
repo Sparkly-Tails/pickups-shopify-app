@@ -89,6 +89,21 @@ export async function getCustomerUnfulfilledOrders(shopifyCustomerId: string): P
   return data.customer.orders.edges.map(e => parseOrder(e.node))
 }
 
+export async function searchProducts(query: string): Promise<string[]> {
+  if (!query.trim()) return []
+  const data = await shopifyQuery<{
+    products: { edges: { node: { title: string } }[] }
+  }>(
+    `query searchProducts($q: String!) {
+      products(first: 8, query: $q) {
+        edges { node { title } }
+      }
+    }`,
+    { q: query }
+  )
+  return data.products.edges.map(e => e.node.title)
+}
+
 export async function getOrderById(orderId: string): Promise<ShopifyOrder | null> {
   const data = await shopifyQuery<{ order: Record<string, unknown> | null }>(
     `query getOrder($id: ID!) {

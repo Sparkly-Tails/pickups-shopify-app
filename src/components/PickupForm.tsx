@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
 import { IOrderItem } from '@/models/Customer'
 import { IPickupItem } from '@/models/PickupEvent'
 import { confirmPickup } from '@/app/actions/confirmPickup'
+import { searchProductsAction } from '@/app/actions/shopifyActions'
 
 type ItemState = {
   productName: string
-  qty: number
+  unitNumber: number
+  totalUnits: number
   status: 'picked' | 'skipped' | 'swapped'
   replacement: string
 }
@@ -23,12 +25,15 @@ export default function PickupForm({
   remainingItems: IOrderItem[]
 }) {
   const [items, setItems] = useState<ItemState[]>(
-    remainingItems.map(i => ({
-      productName: i.productName,
-      qty: i.qty,
-      status: 'picked',
-      replacement: '',
-    }))
+    remainingItems.flatMap(i =>
+      Array.from({ length: i.qty }, (_, unit) => ({
+        productName: i.productName,
+        unitNumber: unit + 1,
+        totalUnits: i.qty,
+        status: 'picked' as const,
+        replacement: '',
+      }))
+    )
   )
   const [notes, setNotes] = useState('')
   const [testMode, setTestMode] = useState(false)
@@ -37,13 +42,39 @@ export default function PickupForm({
   const [done, setDone] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [swapError, setSwapError] = useState<number | null>(null)
+  const [searchResults, setSearchResults] = useState<Record<number, string[]>>({})
+  const [searchOpen, setSearchOpen] = useState<number | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function setStatus(idx: number, status: 'picked' | 'skipped' | 'swapped') {
     setItems(prev => prev.map((item, i) => (i === idx ? { ...item, status } : item)))
+    if (status !== 'swapped') {
+      setSearchResults(prev => { const n = { ...prev }; delete n[idx]; return n })
+      setSearchOpen(null)
+    }
+    if (swapError === idx) setSwapError(null)
   }
 
   function setReplacement(idx: number, value: string) {
     setItems(prev => prev.map((item, i) => (i === idx ? { ...item, replacement: value } : item)))
+    if (swapError === idx) setSwapError(null)
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (value.trim().length < 2) {
+      setSearchResults(prev => ({ ...prev, [idx]: [] }))
+      return
+    }
+    debounceRef.current = setTimeout(async () => {
+      const results = await searchProductsAction(value)
+      setSearchResults(prev => ({ ...prev, [idx]: results }))
+      setSearchOpen(idx)
+    }, 300)
+  }
+
+  function pickSuggestion(idx: number, title: string) {
+    setItems(prev => prev.map((item, i) => (i === idx ? { ...item, replacement: title } : item)))
+    setSearchResults(prev => ({ ...prev, [idx]: [] }))
+    setSearchOpen(null)
   }
 
   async function handleSubmit() {
@@ -57,7 +88,7 @@ export default function PickupForm({
     try {
       const payload: IPickupItem[] = items.map(i => ({
         productName: i.productName,
-        qty: i.qty,
+        qty: 1,
         status: i.status,
         replacement: i.status === 'swapped' ? { name: i.replacement.trim() } : null,
       }))
@@ -96,20 +127,24 @@ export default function PickupForm({
     <div className="space-y-3">
       {items.map((item, idx) => (
         <div
-          key={item.productName + idx}
+          key={`${item.productName}-${item.unitNumber}`}
           className={`border rounded-xl p-4 transition-opacity ${item.status === 'skipped' ? 'opacity-40' : ''}`}
         >
           <div className="flex justify-between items-start gap-2">
-            <div className="flex-1">
-              <p className="font-medium">{item.productName}</p>
-              <p className="text-sm text-gray-500">Qty: {item.qty}</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{item.productName}</p>
+              {item.totalUnits > 1 && (
+                <p className="text-xs text-gray-400">
+                  Unit {item.unitNumber} of {item.totalUnits}
+                </p>
+              )}
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 shrink-0">
               {(['picked', 'skipped', 'swapped'] as const).map(s => (
                 <button
                   key={s}
                   aria-pressed={item.status === s}
-                  onClick={() => { setStatus(idx, s); if (swapError === idx) setSwapError(null) }}
+                  onClick={() => setStatus(idx, s)}
                   className={`text-xs px-3 py-2 min-h-[36px] rounded-full border capitalize transition-colors ${
                     item.status === s
                       ? s === 'picked'
@@ -127,16 +162,33 @@ export default function PickupForm({
           </div>
 
           {item.status === 'swapped' && (
-            <div className="mt-2">
+            <div className="mt-2 relative">
               <input
                 type="text"
-                placeholder="Replacement product name"
+                placeholder="Search replacement product…"
                 value={item.replacement}
-                onChange={e => { setReplacement(idx, e.target.value); if (swapError === idx) setSwapError(null) }}
+                onChange={e => setReplacement(idx, e.target.value)}
+                onFocus={() => searchResults[idx]?.length && setSearchOpen(idx)}
+                onBlur={() => setTimeout(() => setSearchOpen(null), 150)}
                 className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 ${swapError === idx ? 'border-red-400' : ''}`}
               />
               {swapError === idx && (
                 <p className="mt-1 text-xs text-red-500">Enter a replacement product name.</p>
+              )}
+              {searchOpen === idx && searchResults[idx]?.length > 0 && (
+                <ul className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg text-sm overflow-hidden">
+                  {searchResults[idx].map(title => (
+                    <li key={title}>
+                      <button
+                        type="button"
+                        onMouseDown={() => pickSuggestion(idx, title)}
+                        className="w-full text-left px-3 py-2 hover:bg-yellow-50 transition-colors"
+                      >
+                        {title}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           )}

@@ -109,7 +109,7 @@ function CustomerRow({ customer, dim }: { customer: ICustomer; dim?: boolean }) 
   return (
     <Link
       href={`/customer/${customer._id}`}
-      className="block border rounded-xl p-4 bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+      className="block border rounded-xl p-4 bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors"
     >
       <div className="flex items-center justify-between gap-2">
         <div>
