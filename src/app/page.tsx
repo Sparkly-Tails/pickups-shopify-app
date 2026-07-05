@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { version } from '../../package.json'
 import { connectDB } from '@/lib/mongodb'
 import { CustomerModel, ICustomer, IOrderItem } from '@/models/Customer'
 import { PickupEventModel, IPickupItem } from '@/models/PickupEvent'
@@ -54,7 +55,9 @@ export default async function Home() {
   return (
     <main className="w-[70%] max-w-2xl mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Pickups</h1>
+        <h1 className="text-2xl font-bold">
+          Pickups <span className="text-xs font-normal text-gray-400">v{version}</span>
+        </h1>
         <Link href="/dashboard" className="text-sm text-blue-600">
           Dashboard →
         </Link>
