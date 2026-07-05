@@ -7,8 +7,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const query: Record<string, unknown> = {}
 
-  const subscriptionId = searchParams.get('subscriptionId')
-  if (subscriptionId) query.subscriptionId = subscriptionId
+  const shopifyCustomerId = searchParams.get('customerId')
+  if (shopifyCustomerId) query.shopifyCustomerId = shopifyCustomerId
 
   const from = searchParams.get('from')
   const to = searchParams.get('to')

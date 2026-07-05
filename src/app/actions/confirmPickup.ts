@@ -2,56 +2,101 @@
 
 import { connectDB } from '@/lib/mongodb'
 import { PickupEventModel, IPickupItem } from '@/models/PickupEvent'
-import { SubscriptionModel } from '@/models/Subscription'
+import { CustomerModel, IOrderItem } from '@/models/Customer'
 import { sendPickupConfirmedEvent } from '@/lib/klaviyo'
 
 export interface ConfirmPickupInput {
-  subscriptionId: string
-  date: string
-  weekNumber: number
-  subscriptionMonth: string
+  customerId: string
   notes: string
   items: IPickupItem[]
 }
 
-export async function confirmPickup(input: ConfirmPickupInput): Promise<{ ok: boolean; emailSent: boolean }> {
+function calcRemaining(
+  orderItems: IOrderItem[],
+  allPickedItems: IPickupItem[]
+): IOrderItem[] {
+  const consumed = new Map<string, number>()
+  for (const item of allPickedItems) {
+    if (item.status === 'picked' || item.status === 'swapped') {
+      consumed.set(item.productName, (consumed.get(item.productName) ?? 0) + item.qty)
+    }
+  }
+  return orderItems
+    .map(oi => ({ ...oi, qty: oi.qty - (consumed.get(oi.productName) ?? 0) }))
+    .filter(oi => oi.qty > 0)
+}
+
+export async function confirmPickup(
+  input: ConfirmPickupInput
+): Promise<{ ok: boolean; emailSent: boolean }> {
   await connectDB()
-  const sub = await SubscriptionModel.findById(input.subscriptionId)
-  if (!sub) throw new Error('Subscription not found')
+
+  const customer = await CustomerModel.findById(input.customerId)
+  if (!customer) throw new Error('Customer not found')
+  if (!customer.currentOrderId) throw new Error('No active order')
+
+  const weekNumber =
+    (await PickupEventModel.countDocuments({
+      shopifyCustomerId: customer.shopifyCustomerId,
+      shopifyOrderId: customer.currentOrderId,
+    })) + 1
+
+  const subscriptionMonth = new Date().toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+  })
 
   const event = await PickupEventModel.create({
-    subscriptionId: input.subscriptionId,
-    customerId: sub.customerId,
-    customerName: sub.customer.name,
-    date: new Date(input.date),
-    weekNumber: input.weekNumber,
-    subscriptionMonth: input.subscriptionMonth,
+    shopifyCustomerId: customer.shopifyCustomerId,
+    shopifyOrderId: customer.currentOrderId,
+    customerEmail: customer.email,
+    customerName: customer.name,
+    date: new Date(),
     notes: input.notes,
     emailSent: false,
     items: input.items,
   })
 
+  // Recalculate remaining after this session
+  const previousItems = await PickupEventModel.find({
+    shopifyCustomerId: customer.shopifyCustomerId,
+    shopifyOrderId: customer.currentOrderId,
+    _id: { $ne: event._id },
+  }).lean()
+
+  const allPickedItems = [...previousItems.flatMap(e => e.items), ...input.items]
+  const remaining = calcRemaining(customer.currentOrderItems, allPickedItems)
+
+  // Auto-complete cycle when nothing left
+  if (remaining.length === 0) {
+    await CustomerModel.updateOne(
+      { _id: customer._id },
+      { currentOrderId: null, currentOrderItems: [] }
+    )
+  }
+
   const itemsPickedUp = input.items
-    .filter(i => !i.escaped)
+    .filter(i => i.status === 'picked' || i.status === 'swapped')
     .map(i => ({
       product: i.replacement?.name ?? i.productName,
       quantity: i.qty,
-      unit: i.unit,
-      ...(i.replacement ? { replaced_for: i.productName } : {}),
+      unit: '',
+      ...(i.status === 'swapped' ? { replaced_for: i.productName } : {}),
     }))
 
-  const pickedUpNames = new Set(input.items.filter(i => !i.escaped).map(i => i.productName))
-  const itemsRemaining = sub.lines
-    .filter((l: { productName: string; qty: number; unit: string }) => !pickedUpNames.has(l.productName))
-    .map((l: { productName: string; qty: number; unit: string }) => ({ product: l.productName, quantity: l.qty, unit: l.unit }))
+  const itemsRemaining = remaining.map(i => ({
+    product: i.productName,
+    quantity: i.qty,
+    unit: '',
+  }))
 
   let emailSent = false
   try {
     await sendPickupConfirmedEvent({
-      email: sub.customer.email,
-      customerName: sub.customer.name,
-      weekNumber: input.weekNumber,
-      subscriptionMonth: input.subscriptionMonth,
+      email: customer.email,
+      customerName: customer.name,
+      weekNumber,
+      subscriptionMonth,
       itemsPickedUp,
       itemsRemaining,
     })

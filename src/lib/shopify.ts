@@ -14,143 +14,90 @@ async function shopifyQuery<T>(query: string, variables?: Record<string, unknown
   return json.data as T
 }
 
-// ── Subscription Contracts ────────────────────────────────────────────────────
+// ── Customer ──────────────────────────────────────────────────────────────────
 
-export interface ShopifySubscriptionLine {
+export interface ShopifyCustomer {
   id: string
-  variantId: string
+  displayName: string
+  email: string
+}
+
+export async function getCustomerByEmail(email: string): Promise<ShopifyCustomer | null> {
+  const data = await shopifyQuery<{
+    customers: { edges: { node: ShopifyCustomer }[] }
+  }>(
+    `query searchCustomer($q: String!) {
+      customers(first: 1, query: $q) {
+        edges { node { id displayName email } }
+      }
+    }`,
+    { q: `email:${email}` }
+  )
+  return data.customers.edges[0]?.node ?? null
+}
+
+// ── Orders ────────────────────────────────────────────────────────────────────
+
+export interface ShopifyOrderLineItem {
+  id: string
   title: string
   quantity: number
-  currentPrice: { amount: string }
-  productVariant: { image: { url: string } | null } | null
 }
 
-export interface ShopifySubscriptionContract {
+export interface ShopifyOrder {
   id: string
-  status: 'ACTIVE' | 'PAUSED' | 'CANCELLED' | 'FAILED' | 'EXPIRED'
-  nextBillingDate: string
-  customer: { id: string; displayName: string; email: string }
-  billingPolicy: { interval: string; intervalCount: number }
-  lines: ShopifySubscriptionLine[]
-}
-
-const CONTRACT_FIELDS = `
-  id
-  status
-  nextBillingDate
-  customer { id displayName email }
-  billingPolicy { interval intervalCount }
-  lines(first: 20) {
-    edges {
-      node {
-        id
-        variantId
-        title
-        quantity
-        currentPrice { amount }
-        productVariant { image { url } }
-      }
-    }
-  }
-`
-
-function parseContract(raw: Record<string, unknown>): ShopifySubscriptionContract {
-  const lines = raw.lines as { edges: { node: ShopifySubscriptionLine }[] }
-  return {
-    ...(raw as Omit<ShopifySubscriptionContract, 'lines'>),
-    lines: lines.edges.map(e => e.node),
-  }
-}
-
-export async function getSubscriptionContract(id: string): Promise<ShopifySubscriptionContract> {
-  const data = await shopifyQuery<{ subscriptionContract: Record<string, unknown> }>(
-    `query getContract($id: ID!) { subscriptionContract(id: $id) { ${CONTRACT_FIELDS} } }`,
-    { id }
-  )
-  return parseContract(data.subscriptionContract)
-}
-
-type ContractsPage = {
-  subscriptionContracts: {
-    pageInfo: { hasNextPage: boolean; endCursor: string }
-    edges: { node: Record<string, unknown> }[]
-  }
-}
-
-export async function getAllSubscriptionContracts(): Promise<ShopifySubscriptionContract[]> {
-  const results: ShopifySubscriptionContract[] = []
-  let cursor: string | null = null
-
-  while (true) {
-    const data: ContractsPage = await shopifyQuery<ContractsPage>(
-      `query getContracts($cursor: String) {
-        subscriptionContracts(first: 50, after: $cursor) {
-          pageInfo { hasNextPage endCursor }
-          edges { node { ${CONTRACT_FIELDS} } }
-        }
-      }`,
-      { cursor }
-    )
-
-    for (const edge of data.subscriptionContracts.edges) {
-      results.push(parseContract(edge.node))
-    }
-
-    if (!data.subscriptionContracts.pageInfo.hasNextPage) break
-    cursor = data.subscriptionContracts.pageInfo.endCursor
-  }
-
-  return results
-}
-
-// ── Products & Customers ──────────────────────────────────────────────────────
-
-export interface ShopifyVariant {
   name: string
-  imageUrl: string
-  price: number
+  createdAt: string
+  displayFulfillmentStatus: string
+  lineItems: ShopifyOrderLineItem[]
 }
 
-const VARIANTS_QUERY = `
-  query getVariants($ids: [ID!]!) {
-    nodes(ids: $ids) {
-      ... on ProductVariant {
-        id
-        price
-        product {
-          title
-          featuredImage { url }
-        }
-      }
-    }
+const ORDER_LINE_ITEMS = `
+  lineItems(first: 30) {
+    edges { node { id title quantity } }
   }
 `
 
-type VariantNode = {
-  id: string
-  price: string
-  product: { title: string; featuredImage: { url: string } | null }
-}
-
-export async function getShopifyVariants(variantIds: string[]): Promise<Map<string, ShopifyVariant>> {
-  if (variantIds.length === 0) return new Map()
-  const data = await shopifyQuery<{ nodes: (VariantNode | null)[] }>(VARIANTS_QUERY, { ids: variantIds })
-  const map = new Map<string, ShopifyVariant>()
-  for (const node of data.nodes) {
-    if (node) {
-      map.set(node.id, {
-        name: node.product.title,
-        imageUrl: node.product.featuredImage?.url ?? '',
-        price: parseFloat(node.price),
-      })
-    }
+function parseOrder(raw: Record<string, unknown>): ShopifyOrder {
+  const lineItems = raw.lineItems as { edges: { node: ShopifyOrderLineItem }[] }
+  return {
+    ...(raw as Omit<ShopifyOrder, 'lineItems'>),
+    lineItems: lineItems.edges.map(e => e.node),
   }
-  return map
 }
 
-export async function getShopifyCustomer(shopifyId: string): Promise<{ displayName: string; email: string }> {
-  const data = await shopifyQuery<{ customer: { displayName: string; email: string } }>(
-    `query { customer(id: "${shopifyId}") { displayName email } }`
+export async function getCustomerUnfulfilledOrders(shopifyCustomerId: string): Promise<ShopifyOrder[]> {
+  const data = await shopifyQuery<{
+    customer: {
+      orders: { edges: { node: Record<string, unknown> }[] }
+    }
+  }>(
+    `query getCustomerOrders($id: ID!) {
+      customer(id: $id) {
+        orders(first: 10, query: "fulfillment_status:unfulfilled") {
+          edges {
+            node {
+              id name createdAt displayFulfillmentStatus
+              ${ORDER_LINE_ITEMS}
+            }
+          }
+        }
+      }
+    }`,
+    { id: shopifyCustomerId }
   )
-  return data.customer
+  return data.customer.orders.edges.map(e => parseOrder(e.node))
+}
+
+export async function getOrderById(orderId: string): Promise<ShopifyOrder | null> {
+  const data = await shopifyQuery<{ order: Record<string, unknown> | null }>(
+    `query getOrder($id: ID!) {
+      order(id: $id) {
+        id name createdAt displayFulfillmentStatus
+        ${ORDER_LINE_ITEMS}
+      }
+    }`,
+    { id: orderId }
+  )
+  return data.order ? parseOrder(data.order) : null
 }

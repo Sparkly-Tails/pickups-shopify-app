@@ -2,34 +2,33 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ISubscription } from '@/models/Subscription'
+import { IOrderItem } from '@/models/Customer'
+import { IPickupItem } from '@/models/PickupEvent'
 import { confirmPickup } from '@/app/actions/confirmPickup'
 
-interface ItemState {
+type ItemState = {
   productName: string
   qty: number
-  unit: string
-  escaped: boolean
-  replacement: { name: string; price: number } | null
+  status: 'picked' | 'skipped' | 'swapped'
+  replacement: string
 }
 
 export default function PickupForm({
-  subscription,
-  weekNumber,
-  subscriptionMonth,
+  customerId,
+  customerEmail,
+  remainingItems,
 }: {
-  subscription: ISubscription
-  weekNumber: number
-  subscriptionMonth: string
+  customerId: string
+  customerEmail: string
+  remainingItems: IOrderItem[]
 }) {
   const router = useRouter()
   const [items, setItems] = useState<ItemState[]>(
-    subscription.lines.map(l => ({
-      productName: l.productName,
-      qty: l.qty,
-      unit: l.unit,
-      escaped: false,
-      replacement: null,
+    remainingItems.map(i => ({
+      productName: i.productName,
+      qty: i.qty,
+      status: 'picked',
+      replacement: '',
     }))
   )
   const [notes, setNotes] = useState('')
@@ -37,27 +36,33 @@ export default function PickupForm({
   const [done, setDone] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
 
-  function toggleEscaped(idx: number) {
-    setItems(prev =>
-      prev.map((item, i) => (i === idx ? { ...item, escaped: !item.escaped } : item))
-    )
+  function setStatus(idx: number, status: 'picked' | 'skipped' | 'swapped') {
+    setItems(prev => prev.map((item, i) => (i === idx ? { ...item, status } : item)))
+  }
+
+  function setReplacement(idx: number, value: string) {
+    setItems(prev => prev.map((item, i) => (i === idx ? { ...item, replacement: value } : item)))
   }
 
   async function handleSubmit() {
+    if (items.some(i => i.status === 'swapped' && !i.replacement.trim())) {
+      alert('Please enter a replacement product name for all swapped items.')
+      return
+    }
     setSubmitting(true)
     try {
-      const result = await confirmPickup({
-        subscriptionId: subscription._id,
-        date: new Date().toISOString(),
-        weekNumber,
-        subscriptionMonth,
-        notes,
-        items,
-      })
+      const payload: IPickupItem[] = items.map(i => ({
+        productName: i.productName,
+        qty: i.qty,
+        status: i.status,
+        replacement: i.status === 'swapped' ? { name: i.replacement.trim() } : null,
+      }))
+      const result = await confirmPickup({ customerId, notes, items: payload })
       setEmailSent(result.emailSent)
       setDone(true)
     } catch (err) {
       console.error('Pickup failed:', err)
+      alert('Something went wrong. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -69,9 +74,7 @@ export default function PickupForm({
         <p className="text-4xl mb-3">✓</p>
         <p className="text-lg font-semibold">Pickup confirmed!</p>
         <p className="text-sm text-gray-500 mb-6">
-          {emailSent
-            ? `Email sent to ${subscription.customer.email}`
-            : 'Pickup saved (email not sent)'}
+          {emailSent ? `Email sent to ${customerEmail}` : 'Pickup saved (email not sent)'}
         </p>
         <button onClick={() => router.push('/')} className="text-blue-600 text-sm">
           ← Back to list
@@ -81,28 +84,47 @@ export default function PickupForm({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {items.map((item, idx) => (
         <div
-          key={item.productName}
-          className={`border rounded-xl p-4 transition-opacity ${item.escaped ? 'opacity-40' : ''}`}
+          key={item.productName + idx}
+          className={`border rounded-xl p-4 transition-opacity ${item.status === 'skipped' ? 'opacity-40' : ''}`}
         >
-          <div className="flex justify-between items-center">
-            <div>
+          <div className="flex justify-between items-start gap-2">
+            <div className="flex-1">
               <p className="font-medium">{item.productName}</p>
-              <p className="text-sm text-gray-500">{item.qty} × {item.unit}</p>
+              <p className="text-sm text-gray-500">Qty: {item.qty}</p>
             </div>
-            <button
-              onClick={() => toggleEscaped(idx)}
-              className={`text-sm px-3 py-1 rounded-full border ${
-                item.escaped
-                  ? 'bg-gray-100 text-gray-500 border-gray-200'
-                  : 'bg-green-50 text-green-700 border-green-200'
-              }`}
-            >
-              {item.escaped ? 'Skipped' : 'Picked up'}
-            </button>
+            <div className="flex gap-1">
+              {(['picked', 'skipped', 'swapped'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setStatus(idx, s)}
+                  className={`text-xs px-2 py-1 rounded-full border capitalize transition-colors ${
+                    item.status === s
+                      ? s === 'picked'
+                        ? 'bg-green-100 text-green-700 border-green-300'
+                        : s === 'skipped'
+                        ? 'bg-gray-100 text-gray-500 border-gray-300'
+                        : 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                      : 'bg-white text-gray-400 border-gray-200'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {item.status === 'swapped' && (
+            <input
+              type="text"
+              placeholder="Replacement product name"
+              value={item.replacement}
+              onChange={e => setReplacement(idx, e.target.value)}
+              className="mt-2 w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+            />
+          )}
         </div>
       ))}
 
