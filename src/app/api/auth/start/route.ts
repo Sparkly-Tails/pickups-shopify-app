@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyShopifyHmac, makeSessionToken, verifySessionToken } from '@/lib/shopify-auth'
-import { connectDB } from '@/lib/mongodb'
-import { ShopifyTokenModel } from '@/models/ShopifyToken'
+import { verifyShopifyHmac } from '@/lib/shopify-auth'
 
+// This route only has one job: redirect to Shopify OAuth.
+// All session/token decisions happen elsewhere — proxy (fast-path) and
+// callback (token storage + cookie issue).
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const shop = searchParams.get('shop')
@@ -17,45 +18,11 @@ export async function GET(req: NextRequest) {
   }
 
   const valid = await verifyShopifyHmac(searchParams, secret)
-  if (!valid) return new NextResponse('Invalid HMAC', { status: 403 })
-
-  // Shopify includes `host` when loading an embedded app from the admin,
-  // but NOT in the install-from-Partners flow. This is the only reliable
-  // way to distinguish a fresh install attempt from a normal embedded load.
-  const isEmbeddedLoad = searchParams.has('host')
-
-  if (isEmbeddedLoad) {
-    // Normal load from Shopify admin — skip OAuth, use the stored token.
-    let hasToken = false
-    try {
-      await connectDB()
-      const record = await ShopifyTokenModel.findOne({ shop }).lean()
-      hasToken = !!(record && 'accessToken' in record && record.accessToken)
-    } catch (e) {
-      console.error('[auth/start] MongoDB error (embedded load):', e)
-    }
-
-    if (hasToken) {
-      // Reuse a valid session cookie or issue a fresh one
-      const existingCookie = req.cookies.get('__shopify_session')?.value
-      if (existingCookie && (await verifySessionToken(existingCookie, secret))) {
-        return NextResponse.redirect(new URL('/', req.url))
-      }
-      const sessionToken = await makeSessionToken(shop, secret)
-      const res = NextResponse.redirect(new URL('/', req.url))
-      res.cookies.set('__shopify_session', sessionToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-        maxAge: 8 * 60 * 60,
-        path: '/',
-      })
-      return res
-    }
-    // No token even on an embedded load — fall through to OAuth to recover
+  if (!valid) {
+    console.error('[auth/start] HMAC invalid for shop:', shop)
+    return new NextResponse('Invalid HMAC', { status: 403 })
   }
 
-  // No `host` param = install from Partners (or no token in DB) → OAuth
   const callbackUrl = new URL('/api/auth/callback', req.url).toString()
   const scopes = 'read_customers,read_orders,read_products'
 
@@ -64,6 +31,7 @@ export async function GET(req: NextRequest) {
   oauthUrl.searchParams.set('scope', scopes)
   oauthUrl.searchParams.set('redirect_uri', callbackUrl)
 
-  console.log('[auth/start] OAuth — shop:', shop, 'isEmbeddedLoad:', isEmbeddedLoad)
+  console.log('[auth/start] → OAuth shop:', shop, 'callback:', callbackUrl,
+    'params received:', Object.fromEntries(searchParams.entries()))
   return NextResponse.redirect(oauthUrl.toString())
 }

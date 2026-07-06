@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     httpOnly: true,
     secure: true,
     sameSite: 'none',
-    maxAge: 8 * 60 * 60,
+    maxAge: 30 * 24 * 60 * 60, // 30 days — re-OAuth is rare for internal staff
     path: '/',
   })
   return res

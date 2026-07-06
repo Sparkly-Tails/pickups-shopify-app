@@ -62,9 +62,9 @@ export async function proxy(req: NextRequest) {
 
   // Shopify-signed URL (install or embedded load)
   if (searchParams.has('hmac') && searchParams.has('shop')) {
-    // Verify HMAC first; reject bad signatures immediately
     const valid = await verifyShopifyHmac(searchParams, secret)
-    console.log('[proxy] HMAC valid:', valid, 'secret.length:', secret.length)
+    console.log('[proxy] HMAC valid:', valid, 'hasHost:', searchParams.has('host'),
+      'hasCookie:', !!req.cookies.get('__shopify_session'))
     if (!valid) {
       return new NextResponse(
         `HMAC verification failed.\nSHOPIFY_API_SECRET_KEY length: ${secret.length}`,
@@ -72,10 +72,20 @@ export async function proxy(req: NextRequest) {
       )
     }
 
-    // Always hand off to auth/start — it decides whether to use the
-    // session cookie (already installed) or trigger the OAuth install.
-    // Skipping this step here would let a stale session cookie block
-    // the first-time OAuth flow.
+    // Fast-path: embedded load from Shopify admin (has `host` param) with a
+    // valid session cookie → render directly. Partners install URLs do NOT
+    // include `host`, so this never fires during a fresh install, which
+    // always falls through to auth/start → OAuth below.
+    if (searchParams.has('host')) {
+      const cookie = req.cookies.get('__shopify_session')?.value
+      if (cookie && (await verifySessionToken(cookie, secret))) {
+        console.log('[proxy] embedded load fast-path → render')
+        return NextResponse.next()
+      }
+    }
+
+    // No valid session (or no `host`) → hand off to auth/start which will
+    // always trigger a fresh OAuth flow.
     const startUrl = new URL('/api/auth/start', req.url)
     searchParams.forEach((v, k) => startUrl.searchParams.set(k, v))
     return NextResponse.redirect(startUrl)
