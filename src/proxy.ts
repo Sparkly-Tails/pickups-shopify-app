@@ -91,7 +91,7 @@ export async function proxy(req: NextRequest) {
     `<!DOCTYPE html><html><head><title>Access restricted</title></head><body style="font-family:sans-serif;padding:40px;text-align:center">
       <h2>Open this app from your Shopify admin</h2>
       <p>This app can only be accessed via the Shopify admin.</p>
-      ${shop ? `<p><a href="https://${shop}/admin/apps">Go to Shopify admin →</a></p>` : ''}
+      ${shop ? `<p><a href="https://${shop}/admin/apps">Go to Shopify admin &rarr;</a></p>` : ''}
     </body></html>`,
     { status: 403, headers: { 'Content-Type': 'text/html' } },
   )
