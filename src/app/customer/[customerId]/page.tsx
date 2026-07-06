@@ -53,7 +53,7 @@ export default async function CustomerPage({
     : []
 
   return (
-    <main className="max-w-lg mx-auto p-4">
+    <main className="w-[70%] max-w-2xl mx-auto p-4">
       {/* Header */}
       <div className="flex items-center gap-3 mb-1">
         <Link href="/" className="text-blue-600 text-sm">← Back</Link>
