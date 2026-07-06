@@ -23,7 +23,11 @@ function calcRemaining(
     }
   }
   return orderItems
-    .map(oi => ({ ...oi, qty: oi.qty - (consumed.get(oi.productName) ?? 0) }))
+    .map(oi => ({
+      shopifyLineItemId: oi.shopifyLineItemId,
+      productName: oi.productName,
+      qty: oi.qty - (consumed.get(oi.productName) ?? 0),
+    }))
     .filter(oi => oi.qty > 0)
 }
 
