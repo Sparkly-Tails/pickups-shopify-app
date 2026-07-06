@@ -62,13 +62,7 @@ export async function proxy(req: NextRequest) {
 
   // Shopify-signed URL (install or embedded load)
   if (searchParams.has('hmac') && searchParams.has('shop')) {
-    // Fast path: existing valid session — just render
-    const existing = req.cookies.get('__shopify_session')?.value
-    if (existing && (await verifySessionToken(existing, secret))) {
-      return NextResponse.next()
-    }
-
-    // Verify HMAC before doing anything else
+    // Verify HMAC first; reject bad signatures immediately
     const valid = await verifyShopifyHmac(searchParams, secret)
     console.log('[proxy] HMAC valid:', valid, 'secret.length:', secret.length)
     if (!valid) {
@@ -78,8 +72,10 @@ export async function proxy(req: NextRequest) {
       )
     }
 
-    // Hand off to the auth/start API route — it checks MongoDB and either
-    // issues a session cookie (already installed) or initiates OAuth.
+    // Always hand off to auth/start — it decides whether to use the
+    // session cookie (already installed) or trigger the OAuth install.
+    // Skipping this step here would let a stale session cookie block
+    // the first-time OAuth flow.
     const startUrl = new URL('/api/auth/start', req.url)
     searchParams.forEach((v, k) => startUrl.searchParams.set(k, v))
     return NextResponse.redirect(startUrl)
