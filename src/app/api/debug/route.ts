@@ -1,7 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const callbackUrl = new URL('/api/auth/callback', req.url).toString()
   return NextResponse.json({
+    oauth: {
+      callbackUrl,
+      note: 'This exact string must be in Shopify Partners → app → Configuration → Allowed redirection URL(s)',
+    },
     env: {
       SHOPIFY_API_SECRET_KEY: process.env.SHOPIFY_API_SECRET_KEY
         ? `set (${process.env.SHOPIFY_API_SECRET_KEY.length} chars)`
@@ -16,6 +21,7 @@ export async function GET() {
       PICKUP_APP_SECRET: process.env.PICKUP_APP_SECRET
         ? `set (${process.env.PICKUP_APP_SECRET.length} chars)`
         : 'MISSING',
+      APP_URL: process.env.APP_URL || 'not set',
       NODE_ENV: process.env.NODE_ENV,
     },
   })

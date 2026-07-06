@@ -33,9 +33,9 @@ export async function GET(req: NextRequest) {
   }
 
   if (!isInstalled) {
-    // First-time install: always go through OAuth regardless of any cookie
-    const appUrl = process.env.APP_URL || `https://${req.headers.get('host')}`
-    const callbackUrl = `${appUrl}/api/auth/callback`
+    // Build callback URL from the live request so it always matches what
+    // Shopify's whitelist expects, regardless of APP_URL env var value.
+    const callbackUrl = new URL('/api/auth/callback', req.url).toString()
     const scopes = 'read_customers,read_orders,read_products'
 
     const oauthUrl = new URL(`https://${shop}/admin/oauth/authorize`)
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     oauthUrl.searchParams.set('scope', scopes)
     oauthUrl.searchParams.set('redirect_uri', callbackUrl)
 
-    console.log('[auth/start] not installed, redirecting to OAuth for shop:', shop)
+    console.log('[auth/start] OAuth redirect — shop:', shop, 'callbackUrl:', callbackUrl)
     return NextResponse.redirect(oauthUrl.toString())
   }
 
