@@ -50,14 +50,12 @@ export async function GET(req: NextRequest) {
   // Issue a session cookie (SameSite=None so it travels into the Shopify
   // admin iframe when the app is opened from there later).
   const sessionToken = await makeSessionToken(shop, secret)
-  const shopSlug = shop.replace('.myshopify.com', '')
+  // Redirect to the Shopify admin. Staff can then open the app from
+  // the Apps section where it will load embedded.
+  const adminUrl = `https://${shop}/admin`
+  console.log('[auth/callback] redirecting to Shopify admin:', adminUrl)
 
-  // Redirect into the Shopify admin so the app opens embedded.
-  // Using the api_key as the app identifier; works once the app is installed.
-  const embeddedUrl = `https://admin.shopify.com/store/${shopSlug}/apps/${apiKey}`
-  console.log('[auth/callback] redirecting to Shopify admin:', embeddedUrl)
-
-  const res = NextResponse.redirect(embeddedUrl)
+  const res = NextResponse.redirect(adminUrl)
   res.cookies.set('__shopify_session', sessionToken, {
     httpOnly: true,
     secure: true,
