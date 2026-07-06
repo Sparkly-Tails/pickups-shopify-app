@@ -38,7 +38,7 @@ export async function proxy(req: NextRequest) {
     })
   }
 
-  // Shopify-signed URL (initial app load from admin)
+  // Shopify-signed URL (app load from admin)
   if (searchParams.has('hmac') && searchParams.has('shop')) {
     const valid = await verifyShopifyHmac(searchParams, secret)
     if (!valid) {
@@ -46,7 +46,30 @@ export async function proxy(req: NextRequest) {
     }
     const shop = searchParams.get('shop')!
     const token = await makeSessionToken(shop, secret)
-    const res = NextResponse.next()
+
+    // If a valid session cookie is already present this is the iframe reload
+    // (Shopify admin embedding the app after the redirect below). Render normally.
+    const existing = req.cookies.get('__shopify_session')?.value
+    const isEmbeddedReload = existing && (await verifySessionToken(existing, secret))
+
+    if (isEmbeddedReload) {
+      const res = NextResponse.next()
+      res.cookies.set('__shopify_session', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        maxAge: 8 * 60 * 60,
+        path: '/',
+      })
+      return res
+    }
+
+    // First load in a standalone browser tab — set cookie then redirect to
+    // Shopify admin, which will embed the app in an iframe.
+    const shopSlug = shop.replace('.myshopify.com', '')
+    const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY
+    const adminUrl = `https://admin.shopify.com/store/${shopSlug}/apps/${apiKey}`
+    const res = NextResponse.redirect(adminUrl)
     res.cookies.set('__shopify_session', token, {
       httpOnly: true,
       secure: true,
