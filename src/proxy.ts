@@ -109,7 +109,6 @@ export async function proxy(req: NextRequest) {
 
   // No valid session — redirect to Shopify admin
   const shop = process.env.SHOPIFY_SHOP
-  const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY
   if (shop && apiKey) {
     return NextResponse.redirect(`https://${shop}/admin/apps/${apiKey}`)
   }
