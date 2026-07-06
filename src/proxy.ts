@@ -85,12 +85,16 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // No valid session — redirect to Shopify admin
+  // No valid session — show a message directing staff to open from Shopify admin
   const shop = process.env.SHOPIFY_SHOP
-  if (shop && apiKey) {
-    return NextResponse.redirect(`https://${shop}/admin/apps/${apiKey}`)
-  }
-  return new NextResponse('Unauthorized', { status: 403 })
+  return new NextResponse(
+    `<!DOCTYPE html><html><head><title>Access restricted</title></head><body style="font-family:sans-serif;padding:40px;text-align:center">
+      <h2>Open this app from your Shopify admin</h2>
+      <p>This app can only be accessed via the Shopify admin.</p>
+      ${shop ? `<p><a href="https://${shop}/admin/apps">Go to Shopify admin →</a></p>` : ''}
+    </body></html>`,
+    { status: 403, headers: { 'Content-Type': 'text/html' } },
+  )
 }
 
 export const config = {
