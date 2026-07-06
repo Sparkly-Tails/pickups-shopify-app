@@ -14,9 +14,13 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // API routes: Bearer token auth
+  // API routes: Bearer token auth (auth routes and webhooks are exempt)
   if (pathname.startsWith('/api/')) {
-    if (pathname.startsWith('/api/webhooks') || pathname.startsWith('/api/debug')) {
+    if (
+      pathname.startsWith('/api/webhooks') ||
+      pathname.startsWith('/api/debug') ||
+      pathname.startsWith('/api/auth/')
+    ) {
       return NextResponse.next()
     }
     const auth = req.headers.get('authorization')
@@ -56,27 +60,29 @@ export async function proxy(req: NextRequest) {
     })
   }
 
-  // Shopify-signed URL — verify HMAC, set session cookie, render the app
+  // Shopify-signed URL (install or embedded load)
   if (searchParams.has('hmac') && searchParams.has('shop')) {
+    // Fast path: existing valid session — just render
+    const existing = req.cookies.get('__shopify_session')?.value
+    if (existing && (await verifySessionToken(existing, secret))) {
+      return NextResponse.next()
+    }
+
+    // Verify HMAC before doing anything else
     const valid = await verifyShopifyHmac(searchParams, secret)
     console.log('[proxy] HMAC valid:', valid, 'secret.length:', secret.length)
     if (!valid) {
       return new NextResponse(
-        `HMAC verification failed.\nSHOPIFY_API_SECRET_KEY length: ${secret.length}\nEnsure the key in Vercel matches the API secret key in your Shopify app.`,
+        `HMAC verification failed.\nSHOPIFY_API_SECRET_KEY length: ${secret.length}`,
         { status: 403 },
       )
     }
-    const shop = searchParams.get('shop')!
-    const token = await makeSessionToken(shop, secret)
-    const res = NextResponse.next()
-    res.cookies.set('__shopify_session', token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 8 * 60 * 60,
-      path: '/',
-    })
-    return res
+
+    // Hand off to the auth/start API route — it checks MongoDB and either
+    // issues a session cookie (already installed) or initiates OAuth.
+    const startUrl = new URL('/api/auth/start', req.url)
+    searchParams.forEach((v, k) => startUrl.searchParams.set(k, v))
+    return NextResponse.redirect(startUrl)
   }
 
   // Subsequent requests — check session cookie

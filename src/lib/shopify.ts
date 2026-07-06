@@ -1,14 +1,34 @@
+import { connectDB } from './mongodb'
+import { ShopifyTokenModel } from '@/models/ShopifyToken'
+
 const SHOPIFY_API_URL = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/graphql.json`;
+
+async function getAccessToken(): Promise<string> {
+  const shop = process.env.SHOPIFY_SHOP
+  if (shop) {
+    try {
+      await connectDB()
+      const record = await ShopifyTokenModel.findOne({ shop }).lean()
+      if (record && 'accessToken' in record && record.accessToken) {
+        return record.accessToken as string
+      }
+    } catch {
+      // Fall through to env var
+    }
+  }
+  return process.env.SHOPIFY_ACCESS_TOKEN!
+}
 
 async function shopifyQuery<T>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<T> {
+  const token = await getAccessToken()
   const res = await fetch(SHOPIFY_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Shopify-Access-Token": process.env.SHOPIFY_ACCESS_TOKEN!,
+      "X-Shopify-Access-Token": token,
     },
     body: JSON.stringify({ query, variables }),
   });
