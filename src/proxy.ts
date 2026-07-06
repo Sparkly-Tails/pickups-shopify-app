@@ -16,7 +16,7 @@ export async function proxy(req: NextRequest) {
 
   // API routes: Bearer token auth
   if (pathname.startsWith('/api/')) {
-    if (pathname.startsWith('/api/webhooks')) {
+    if (pathname.startsWith('/api/webhooks') || pathname.startsWith('/api/debug')) {
       return NextResponse.next()
     }
     const auth = req.headers.get('authorization')
