@@ -6,7 +6,8 @@ export async function searchProductsAction(query: string): Promise<string[]> {
   if (query.trim().length < 2) return []
   try {
     return await searchProducts(query)
-  } catch {
+  } catch (err) {
+    console.error('searchProducts error:', err)
     return []
   }
 }
