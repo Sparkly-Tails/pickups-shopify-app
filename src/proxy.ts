@@ -56,41 +56,19 @@ export async function proxy(req: NextRequest) {
     })
   }
 
-  // Shopify-signed URL (app load from admin)
+  // Shopify-signed URL — verify HMAC, set session cookie, render the app
   if (searchParams.has('hmac') && searchParams.has('shop')) {
     const valid = await verifyShopifyHmac(searchParams, secret)
-    console.log('[proxy] HMAC valid:', valid)
+    console.log('[proxy] HMAC valid:', valid, 'secret.length:', secret.length)
     if (!valid) {
       return new NextResponse(
-        `HMAC verification failed. Check SHOPIFY_API_SECRET_KEY in Vercel env vars.\nSecret length: ${secret.length}`,
+        `HMAC verification failed.\nSHOPIFY_API_SECRET_KEY length: ${secret.length}\nEnsure the key in Vercel matches the API secret key in your Shopify app.`,
         { status: 403 },
       )
     }
     const shop = searchParams.get('shop')!
     const token = await makeSessionToken(shop, secret)
-
-    // If a valid session cookie is already present this is the iframe reload
-    const existing = req.cookies.get('__shopify_session')?.value
-    const isEmbeddedReload = existing && (await verifySessionToken(existing, secret))
-    console.log('[proxy] isEmbeddedReload:', !!isEmbeddedReload)
-
-    if (isEmbeddedReload) {
-      const res = NextResponse.next()
-      res.cookies.set('__shopify_session', token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-        maxAge: 8 * 60 * 60,
-        path: '/',
-      })
-      return res
-    }
-
-    // First load — redirect to Shopify admin to trigger iframe embedding
-    const shopSlug = shop.replace('.myshopify.com', '')
-    const adminUrl = `https://admin.shopify.com/store/${shopSlug}/apps/${apiKey}`
-    console.log('[proxy] redirecting to admin:', adminUrl)
-    const res = NextResponse.redirect(adminUrl)
+    const res = NextResponse.next()
     res.cookies.set('__shopify_session', token, {
       httpOnly: true,
       secure: true,
