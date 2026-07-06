@@ -6,7 +6,7 @@ import { PickupEventModel, IPickupItem } from '@/models/PickupEvent'
 import { getCustomerUnfulfilledOrders } from '@/lib/shopify'
 import PickupForm from '@/components/PickupForm'
 import LoadOrderForm from '@/components/LoadOrderForm'
-import { cancelSubscription } from '@/app/actions/customerActions'
+import { cancelSubscription, resetCycle } from '@/app/actions/customerActions'
 
 function calcRemaining(orderItems: IOrderItem[], pickedItems: IPickupItem[]): IOrderItem[] {
   const consumed = new Map<string, number>()
@@ -145,9 +145,29 @@ export default async function CustomerPage({
         </section>
       )}
 
-      {/* Cancel subscription */}
-      {customer.status === 'active' && (
-        <section className="border-t pt-6">
+      {/* Danger zone */}
+      <section className="border-t pt-6 space-y-4">
+        {customer.currentOrderId && (
+          <div>
+            <form
+              action={async () => {
+                'use server'
+                await resetCycle(customerId)
+              }}
+            >
+              <button
+                type="submit"
+                className="text-sm text-orange-500 hover:text-orange-700 underline"
+              >
+                Reset current cycle
+              </button>
+            </form>
+            <p className="text-xs text-gray-400 mt-1">
+              Deletes all pickups for the current order and lets you reload a fresh one.
+            </p>
+          </div>
+        )}
+        {customer.status === 'active' && (
           <form
             action={async () => {
               'use server'
@@ -161,8 +181,8 @@ export default async function CustomerPage({
               Mark subscription as cancelled
             </button>
           </form>
-        </section>
-      )}
+        )}
+      </section>
     </main>
   )
 }

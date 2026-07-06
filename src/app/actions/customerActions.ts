@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { connectDB } from '@/lib/mongodb'
 import { CustomerModel } from '@/models/Customer'
+import { PickupEventModel } from '@/models/PickupEvent'
 import { getCustomerByEmail, getCustomerUnfulfilledOrders } from '@/lib/shopify'
 
 export async function addCustomerByEmail(email: string): Promise<{ error?: string; customerId?: string }> {
@@ -46,6 +47,23 @@ export async function loadNewOrder(customerId: string, orderId: string, orderIte
   await CustomerModel.updateOne(
     { _id: customerId },
     { currentOrderId: orderId, currentOrderItems: orderItems }
+  )
+  revalidatePath(`/customer/${customerId}`)
+}
+
+export async function resetCycle(customerId: string): Promise<void> {
+  await connectDB()
+  const customer = await CustomerModel.findById(customerId).lean()
+  if (!customer) return
+  if (customer.currentOrderId) {
+    await PickupEventModel.deleteMany({
+      shopifyCustomerId: customer.shopifyCustomerId,
+      shopifyOrderId: customer.currentOrderId,
+    })
+  }
+  await CustomerModel.updateOne(
+    { _id: customerId },
+    { currentOrderId: null, currentOrderItems: [] }
   )
   revalidatePath(`/customer/${customerId}`)
 }
