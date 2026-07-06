@@ -32,8 +32,26 @@ export async function proxy(req: NextRequest) {
   }
 
   const secret = process.env.SHOPIFY_API_SECRET_KEY
+  const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY
+
+  console.log('[proxy] page route', pathname, {
+    hasHmac: searchParams.has('hmac'),
+    hasShop: searchParams.has('shop'),
+    secretSet: !!secret,
+    apiKeySet: !!apiKey,
+    hasCookie: !!req.cookies.get('__shopify_session'),
+  })
+
   if (!secret) {
-    return new NextResponse('App misconfigured: SHOPIFY_API_SECRET_KEY missing', {
+    console.error('[proxy] SHOPIFY_API_SECRET_KEY not set')
+    return new NextResponse('App misconfigured: SHOPIFY_API_SECRET_KEY missing (503)', {
+      status: 503,
+    })
+  }
+
+  if (!apiKey) {
+    console.error('[proxy] NEXT_PUBLIC_SHOPIFY_API_KEY not set')
+    return new NextResponse('App misconfigured: NEXT_PUBLIC_SHOPIFY_API_KEY missing (503)', {
       status: 503,
     })
   }
@@ -41,16 +59,20 @@ export async function proxy(req: NextRequest) {
   // Shopify-signed URL (app load from admin)
   if (searchParams.has('hmac') && searchParams.has('shop')) {
     const valid = await verifyShopifyHmac(searchParams, secret)
+    console.log('[proxy] HMAC valid:', valid)
     if (!valid) {
-      return new NextResponse('Invalid HMAC', { status: 403 })
+      return new NextResponse(
+        `HMAC verification failed. Check SHOPIFY_API_SECRET_KEY in Vercel env vars.\nSecret length: ${secret.length}`,
+        { status: 403 },
+      )
     }
     const shop = searchParams.get('shop')!
     const token = await makeSessionToken(shop, secret)
 
     // If a valid session cookie is already present this is the iframe reload
-    // (Shopify admin embedding the app after the redirect below). Render normally.
     const existing = req.cookies.get('__shopify_session')?.value
     const isEmbeddedReload = existing && (await verifySessionToken(existing, secret))
+    console.log('[proxy] isEmbeddedReload:', !!isEmbeddedReload)
 
     if (isEmbeddedReload) {
       const res = NextResponse.next()
@@ -64,11 +86,10 @@ export async function proxy(req: NextRequest) {
       return res
     }
 
-    // First load in a standalone browser tab — set cookie then redirect to
-    // Shopify admin, which will embed the app in an iframe.
+    // First load — redirect to Shopify admin to trigger iframe embedding
     const shopSlug = shop.replace('.myshopify.com', '')
-    const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY
     const adminUrl = `https://admin.shopify.com/store/${shopSlug}/apps/${apiKey}`
+    console.log('[proxy] redirecting to admin:', adminUrl)
     const res = NextResponse.redirect(adminUrl)
     res.cookies.set('__shopify_session', token, {
       httpOnly: true,
