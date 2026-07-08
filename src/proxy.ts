@@ -82,10 +82,15 @@ export async function proxy(req: NextRequest) {
         console.log('[proxy] embedded load fast-path → render')
         return NextResponse.next()
       }
+      // Embedded load but no session (e.g. staff with limited permissions who
+      // can't run OAuth). Hand off to auth/session which issues a cookie if
+      // the app is already installed, or falls back to OAuth if not.
+      const sessionUrl = new URL('/api/auth/session', req.url)
+      searchParams.forEach((v, k) => sessionUrl.searchParams.set(k, v))
+      return NextResponse.redirect(sessionUrl)
     }
 
-    // No valid session (or no `host`) → hand off to auth/start which will
-    // always trigger a fresh OAuth flow.
+    // No `host` → Partners install URL → always run OAuth.
     const startUrl = new URL('/api/auth/start', req.url)
     searchParams.forEach((v, k) => startUrl.searchParams.set(k, v))
     return NextResponse.redirect(startUrl)
