@@ -45,6 +45,39 @@ export async function GET(req: NextRequest) {
     { upsert: true, returnDocument: 'after' },
   )
 
+  // Register the app/uninstalled webhook so we wipe our token from MongoDB
+  // when the merchant removes the app — ensuring reinstall always runs fresh OAuth.
+  const webhookUrl = `${new URL(req.url).origin}/api/webhooks/shopify`
+  const webhookRes = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': access_token,
+    },
+    body: JSON.stringify({
+      query: `mutation {
+        webhookSubscriptionCreate(
+          topic: APP_UNINSTALLED
+          webhookSubscription: { callbackUrl: "${webhookUrl}", format: JSON }
+        ) {
+          userErrors { field message }
+        }
+      }`,
+    }),
+  })
+  if (!webhookRes.ok) {
+    console.error('[auth/callback] webhook registration HTTP error:', webhookRes.status)
+  } else {
+    const webhookJson = await webhookRes.json()
+    const errors = webhookJson?.data?.webhookSubscriptionCreate?.userErrors
+    if (errors?.length) {
+      // "already registered" is not a real error — Shopify deduplicates by URL+topic
+      console.log('[auth/callback] webhook registration result:', JSON.stringify(errors))
+    } else {
+      console.log('[auth/callback] APP_UNINSTALLED webhook registered for shop:', shop)
+    }
+  }
+
   console.log('[auth/callback] installation complete for shop:', shop)
 
   // Issue a session cookie (SameSite=None so it travels into the Shopify
