@@ -1,7 +1,7 @@
 import { connectDB } from './mongodb'
 import { ShopifyTokenModel } from '@/models/ShopifyToken'
 
-const SHOPIFY_API_URL = `https://${process.env.SHOPIFY_SHOP}/admin/api/2024-10/graphql.json`;
+const SHOPIFY_API_URL = `https://${process.env.SHOPIFY_SHOP}/admin/api/2025-10/graphql.json`;
 
 async function getAccessToken(): Promise<string> {
   const shop = process.env.SHOPIFY_SHOP
