@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   await ShopifyTokenModel.findOneAndUpdate(
     { shop },
     { accessToken: access_token },
-    { upsert: true, new: true },
+    { upsert: true, returnDocument: 'after' },
   )
 
   console.log('[auth/callback] installation complete for shop:', shop)
