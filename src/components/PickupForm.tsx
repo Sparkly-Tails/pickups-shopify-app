@@ -31,7 +31,7 @@ export default function PickupForm({
         productName: i.productName,
         unitNumber: unit + 1,
         totalUnits: i.qty,
-        status: "picked" as const,
+        status: "skipped" as const,
         replacement: "",
         imageUrl: i.imageUrl,
       })),
