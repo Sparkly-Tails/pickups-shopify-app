@@ -88,7 +88,7 @@ export async function confirmPickup(
   const pickedSummary = input.items
     .filter(i => i.status === 'picked' || i.status === 'swapped')
     .map(i => `${i.qty}× ${i.replacement?.name ?? i.productName}`)
-    .join(', ')
+    .join('\n')
   if (pickedSummary) {
     try {
       await appendOrderNote(customer.currentOrderId, `[${dateStr}] Picked up: ${pickedSummary}`)
