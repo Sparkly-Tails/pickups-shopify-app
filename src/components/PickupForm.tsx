@@ -13,6 +13,7 @@ type ItemState = {
   totalUnits: number;
   status: "picked" | "skipped" | "swapped";
   replacement: string;
+  imageUrl?: string;
 };
 
 export default function PickupForm({
@@ -32,6 +33,7 @@ export default function PickupForm({
         totalUnits: i.qty,
         status: "picked" as const,
         replacement: "",
+        imageUrl: i.imageUrl,
       })),
     ),
   );
@@ -111,6 +113,7 @@ export default function PickupForm({
         status: i.status,
         replacement:
           i.status === "swapped" ? { name: i.replacement.trim() } : null,
+        imageUrl: i.imageUrl,
       }));
       const result = await confirmPickup({
         customerId,

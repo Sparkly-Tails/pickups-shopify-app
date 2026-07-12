@@ -5,6 +5,7 @@ export interface IPickupItem {
   qty: number
   status: 'picked' | 'skipped' | 'swapped'
   replacement: { name: string } | null
+  imageUrl?: string
 }
 
 export interface IPickupEvent {
@@ -34,6 +35,7 @@ const PickupEventSchema = new Schema<IPickupEvent>({
       qty: Number,
       status: { type: String, enum: ['picked', 'skipped', 'swapped'], default: 'picked' },
       replacement: { type: { name: String }, default: null },
+      imageUrl: { type: String, default: null },
     },
   ],
   createdAt: { type: Date, default: Date.now },

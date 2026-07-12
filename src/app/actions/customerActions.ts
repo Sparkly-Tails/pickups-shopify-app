@@ -27,6 +27,7 @@ export async function addCustomerByEmail(email: string): Promise<{ error?: strin
       shopifyLineItemId: li.id,
       productName: li.title,
       qty: li.quantity,
+      imageUrl: li.imageUrl,
     }))
   }
 
@@ -42,7 +43,7 @@ export async function addCustomerByEmail(email: string): Promise<{ error?: strin
   return { customerId: String(customer._id) }
 }
 
-export async function loadNewOrder(customerId: string, orderId: string, orderItems: { shopifyLineItemId: string; productName: string; qty: number }[]): Promise<void> {
+export async function loadNewOrder(customerId: string, orderId: string, orderItems: { shopifyLineItemId: string; productName: string; qty: number; imageUrl?: string }[]): Promise<void> {
   await connectDB()
   await CustomerModel.updateOne(
     { _id: customerId },

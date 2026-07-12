@@ -4,6 +4,7 @@ export interface IOrderItem {
   shopifyLineItemId: string
   productName: string
   qty: number
+  imageUrl?: string
 }
 
 export interface ICustomer {
@@ -28,6 +29,7 @@ const CustomerSchema = new Schema<ICustomer>({
       shopifyLineItemId: String,
       productName: String,
       qty: Number,
+      imageUrl: { type: String, default: null },
     },
   ],
   createdAt: { type: Date, default: Date.now },

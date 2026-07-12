@@ -27,6 +27,7 @@ function calcRemaining(
       shopifyLineItemId: oi.shopifyLineItemId,
       productName: oi.productName,
       qty: oi.qty - (consumed.get(oi.productName) ?? 0),
+      imageUrl: oi.imageUrl,
     }))
     .filter(oi => oi.qty > 0)
 }
@@ -87,12 +88,14 @@ export async function confirmPickup(
       quantity: i.qty,
       unit: i.qty === 1 ? 'item' : 'items',
       ...(i.status === 'swapped' ? { replaced_for: i.productName } : {}),
+      ...(i.imageUrl ? { image_url: `${i.imageUrl}&width=130` } : {}),
     }))
 
   const itemsRemaining = remaining.map(i => ({
     product: i.productName,
     quantity: i.qty,
     unit: i.qty === 1 ? 'item' : 'items',
+    ...(i.imageUrl ? { image_url: `${i.imageUrl}&width=130` } : {}),
   }))
 
   let emailSent = false

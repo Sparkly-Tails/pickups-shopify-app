@@ -21,6 +21,7 @@ export default function LoadOrderForm({
       shopifyLineItemId: li.id,
       productName: li.title,
       qty: li.quantity,
+      imageUrl: li.imageUrl,
     }))
     await loadNewOrder(customerId, order.id, orderItems)
     router.refresh()

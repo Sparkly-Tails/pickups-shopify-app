@@ -67,6 +67,7 @@ export interface ShopifyOrderLineItem {
   id: string;
   title: string;
   quantity: number;
+  imageUrl?: string;
 }
 
 export interface ShopifyOrder {
@@ -79,17 +80,22 @@ export interface ShopifyOrder {
 
 const ORDER_LINE_ITEMS = `
   lineItems(first: 30) {
-    edges { node { id title quantity } }
+    edges { node { id title quantity image { url } } }
   }
 `;
 
 function parseOrder(raw: Record<string, unknown>): ShopifyOrder {
   const lineItems = raw.lineItems as {
-    edges: { node: ShopifyOrderLineItem }[];
+    edges: { node: Record<string, unknown> }[];
   };
   return {
     ...(raw as Omit<ShopifyOrder, "lineItems">),
-    lineItems: lineItems.edges.map((e) => e.node),
+    lineItems: lineItems.edges.map((e) => ({
+      id: e.node.id as string,
+      title: e.node.title as string,
+      quantity: e.node.quantity as number,
+      imageUrl: (e.node.image as { url: string } | null)?.url,
+    })),
   };
 }
 
