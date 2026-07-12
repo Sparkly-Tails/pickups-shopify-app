@@ -6,7 +6,7 @@ import { PickupEventModel, IPickupItem } from '@/models/PickupEvent'
 import { getCustomerUnfulfilledOrders } from '@/lib/shopify'
 import PickupForm from '@/components/PickupForm'
 import LoadOrderForm from '@/components/LoadOrderForm'
-import { cancelSubscription, resetCycle, refreshOrderImages } from '@/app/actions/customerActions'
+import { cancelSubscription, resetCycle } from '@/app/actions/customerActions'
 
 function calcRemaining(orderItems: IOrderItem[], pickedItems: IPickupItem[]): IOrderItem[] {
   const consumed = new Map<string, number>()
@@ -148,26 +148,6 @@ export default async function CustomerPage({
 
       {/* Danger zone */}
       <section className="border-t pt-6 space-y-4">
-        {customer.currentOrderId && (
-          <div>
-            <form
-              action={async () => {
-                'use server'
-                await refreshOrderImages(customerId)
-              }}
-            >
-              <button
-                type="submit"
-                className="text-sm text-blue-500 hover:text-blue-700 underline"
-              >
-                Refresh order images
-              </button>
-            </form>
-            <p className="text-xs text-gray-400 mt-1">
-              Re-fetches product images from Shopify. Safe — does not affect pickup history.
-            </p>
-          </div>
-        )}
         {customer.currentOrderId && (
           <div>
             <form

@@ -52,25 +52,6 @@ export async function loadNewOrder(customerId: string, orderId: string, orderIte
   revalidatePath(`/customer/${customerId}`)
 }
 
-export async function refreshOrderImages(customerId: string): Promise<void> {
-  await connectDB()
-  const customer = await CustomerModel.findById(customerId).lean()
-  if (!customer || !customer.currentOrderId) return
-
-  const orders = await getCustomerUnfulfilledOrders(customer.shopifyCustomerId)
-  const order = orders.find(o => o.id === customer.currentOrderId)
-  if (!order) return
-
-  const imageMap = new Map(order.lineItems.map(li => [li.id, li.imageUrl]))
-  const updatedItems = (customer.currentOrderItems as IOrderItem[]).map(item => ({
-    ...item,
-    imageUrl: imageMap.get(item.shopifyLineItemId) ?? item.imageUrl,
-  }))
-
-  await CustomerModel.updateOne({ _id: customerId }, { currentOrderItems: updatedItems })
-  revalidatePath(`/customer/${customerId}`)
-}
-
 export async function resetCycle(customerId: string): Promise<void> {
   await connectDB()
   const customer = await CustomerModel.findById(customerId).lean()
