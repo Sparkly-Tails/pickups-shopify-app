@@ -89,9 +89,9 @@ export async function confirmPickup(
     .filter(i => i.status === 'picked' || i.status === 'swapped')
     .map(i => `${i.qty}× ${i.replacement?.name ?? i.productName}`)
     .join('\n')
-  if (pickedSummary) {
+  if (pickedSummary && !input.testEmail) {
     try {
-      await appendOrderNote(customer.currentOrderId, `[${dateStr}] Picked up: ${pickedSummary}`)
+      await appendOrderNote(customer.currentOrderId, `[${dateStr}] Picked up:\n${pickedSummary}`)
     } catch (err) {
       console.error('Shopify note error:', err)
     }
