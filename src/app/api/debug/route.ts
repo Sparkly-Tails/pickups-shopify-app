@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectDB } from '@/lib/mongodb'
 import { ShopifyTokenModel } from '@/models/ShopifyToken'
 
+// POST /api/debug/wipe — delete the stored Shopify token so the next install runs fresh OAuth
+export async function POST(req: NextRequest) {
+  const secret = process.env.PICKUP_APP_SECRET
+  const auth = req.headers.get('authorization')
+  if (!secret || auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const shop = process.env.SHOPIFY_SHOP
+  if (!shop) return NextResponse.json({ error: 'SHOPIFY_SHOP not set' }, { status: 503 })
+  await connectDB()
+  const result = await ShopifyTokenModel.deleteOne({ shop })
+  return NextResponse.json({ deleted: result.deletedCount, shop })
+}
+
 export async function GET(req: NextRequest) {
   const callbackUrl = new URL('/api/auth/callback', req.url).toString()
   const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || ''
