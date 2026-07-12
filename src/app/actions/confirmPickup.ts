@@ -4,6 +4,7 @@ import { connectDB } from '@/lib/mongodb'
 import { PickupEventModel, IPickupItem } from '@/models/PickupEvent'
 import { CustomerModel, IOrderItem } from '@/models/Customer'
 import { sendPickupConfirmedEvent } from '@/lib/klaviyo'
+import { appendOrderNote } from '@/lib/shopify'
 
 export interface ConfirmPickupInput {
   customerId: string
@@ -79,6 +80,21 @@ export async function confirmPickup(
       { _id: customer._id },
       { currentOrderId: null, currentOrderItems: [] }
     )
+  }
+
+  const dateStr = new Date().toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  })
+  const pickedSummary = input.items
+    .filter(i => i.status === 'picked' || i.status === 'swapped')
+    .map(i => `${i.qty}× ${i.replacement?.name ?? i.productName}`)
+    .join(', ')
+  if (pickedSummary) {
+    try {
+      await appendOrderNote(customer.currentOrderId, `[${dateStr}] Picked up: ${pickedSummary}`)
+    } catch (err) {
+      console.error('Shopify note error:', err)
+    }
   }
 
   const itemsPickedUp = input.items

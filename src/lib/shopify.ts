@@ -140,6 +140,23 @@ export async function searchProducts(query: string): Promise<string[]> {
   return data.products.edges.map((e) => e.node.title);
 }
 
+export async function appendOrderNote(orderId: string, entry: string): Promise<void> {
+  const data = await shopifyQuery<{ order: { note: string | null } }>(
+    `query getOrderNote($id: ID!) { order(id: $id) { note } }`,
+    { id: orderId },
+  )
+  const existing = data.order?.note ?? ''
+  const updated = existing ? `${existing}\n${entry}` : entry
+  await shopifyQuery(
+    `mutation updateOrderNote($input: OrderInput!) {
+      orderUpdate(input: $input) {
+        userErrors { field message }
+      }
+    }`,
+    { input: { id: orderId, note: updated } },
+  )
+}
+
 export async function getOrderById(
   orderId: string,
 ): Promise<ShopifyOrder | null> {
