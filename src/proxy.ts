@@ -6,6 +6,28 @@ import {
   verifySessionToken,
 } from '@/lib/shopify-auth'
 
+// Cookie options shared by every place we issue the session cookie.
+// `partitioned` (CHIPS) is required for the cookie to survive inside the
+// cross-site Shopify admin iframe: Chrome treats cookies set during a
+// cross-site iframe navigation as third-party and drops them unless they're
+// partitioned per top-level site. Without this, RSC client-side navigation
+// fetches (same-origin to the app, but issued from a page loaded in a
+// third-party iframe) never carry the cookie, no matter what request
+// headers or URL params they include. Note: as of Next.js 16, Proxy
+// deliberately strips RSC signal headers (`rsc`, `next-router-state-tree`,
+// `next-router-prefetch`) from `request.headers` so Proxy can't tell RSC
+// requests apart from full page loads — see the "RSC requests and rewrites"
+// section of the proxy docs. That makes cookie persistence the only viable
+// fix; RSC requests must be authenticated exactly like any other request.
+const SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'none' as const,
+  partitioned: true,
+  maxAge: 30 * 24 * 60 * 60,
+  path: '/',
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl
 
@@ -38,23 +60,12 @@ export async function proxy(req: NextRequest) {
   const secret = process.env.SHOPIFY_API_SECRET_KEY
   const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY
 
-  // Collect RSC signals early so they appear in the page-route log
-  const rscHeader = req.headers.get('rsc')
-  const hasRouterStateTree = req.headers.has('next-router-state-tree')
-  const hasRouterPrefetch = req.headers.has('next-router-prefetch')
-  const rscInRawUrl = req.url.includes('?_rsc=') || req.url.includes('&_rsc=')
-
   console.log('[proxy] page route', pathname, {
     hasHmac: searchParams.has('hmac'),
     hasShop: searchParams.has('shop'),
     secretSet: !!secret,
     apiKeySet: !!apiKey,
     hasCookie: !!req.cookies.get('__shopify_session'),
-    rscHeader,
-    hasRouterStateTree,
-    hasRouterPrefetch,
-    rscInRawUrl,
-    url: req.url.slice(0, 300),
   })
 
   if (!secret) {
@@ -94,18 +105,12 @@ export async function proxy(req: NextRequest) {
         return NextResponse.next()
       }
       // No session cookie — HMAC is valid so allow the page to render.
-      // Also attempt to set a cookie; it persists if the browser allows
-      // SameSite=None in the cross-site iframe, giving a fast-path next time.
-      console.log('[proxy] embedded load, no session → render + attempt cookie')
+      // Issue a partitioned cookie so it persists in the iframe and covers
+      // every subsequent request, including RSC client-side navigation.
+      console.log('[proxy] embedded load, no session → render + set partitioned cookie')
       const sessionToken = await makeSessionToken(shop, secret)
       const res = NextResponse.next()
-      res.cookies.set('__shopify_session', sessionToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none',
-        maxAge: 30 * 24 * 60 * 60,
-        path: '/',
-      })
+      res.cookies.set('__shopify_session', sessionToken, SESSION_COOKIE_OPTIONS)
       return res
     }
 
@@ -115,22 +120,11 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(startUrl)
   }
 
-  // Subsequent requests — check session cookie
+  // Subsequent requests (full page loads AND RSC navigation fetches alike —
+  // Proxy cannot and must not distinguish them, see comment above) — check
+  // session cookie.
   const cookie = req.cookies.get('__shopify_session')?.value
   if (cookie && (await verifySessionToken(cookie, secret))) {
-    return NextResponse.next()
-  }
-
-  // Multi-signal RSC detection: cookies don't persist in cross-site iframes
-  // so we identify client-side navigation fetches by any of four signals.
-  // rscHeader is the canonical signal; the others guard against Vercel Edge
-  // or Next.js 16 normalising/stripping the `rsc` header before middleware
-  // sees it.  req.url (raw string) is used for the URL check because
-  // req.nextUrl strips the internal `_rsc` param before middleware receives it.
-  if (rscHeader === '1' || hasRouterStateTree || hasRouterPrefetch || rscInRawUrl) {
-    console.log('[proxy] RSC navigation detected, allowing through', {
-      rscHeader, hasRouterStateTree, hasRouterPrefetch, rscInRawUrl,
-    })
     return NextResponse.next()
   }
 
@@ -141,13 +135,7 @@ export async function proxy(req: NextRequest) {
     console.log('[proxy] URL session token valid — issuing cookie, redirecting to /')
     const cleanUrl = new URL('/', req.url)
     const res = NextResponse.redirect(cleanUrl)
-    res.cookies.set('__shopify_session', sessionParam, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      maxAge: 30 * 24 * 60 * 60,
-      path: '/',
-    })
+    res.cookies.set('__shopify_session', sessionParam, SESSION_COOKIE_OPTIONS)
     return res
   }
 
