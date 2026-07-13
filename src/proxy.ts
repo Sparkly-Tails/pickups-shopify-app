@@ -102,18 +102,13 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // Session token passed in URL (auth/session broke out of Shopify iframe via
-  // window.top.location.href to land at top-level, bypassing third-party cookie
-  // blocking). Set the cookie, then redirect back into the Shopify admin so the
-  // app re-embeds properly — NOT to '/' which would open standalone.
+  // Session token passed in URL — stays within the iframe (same-origin redirect).
+  // Shopify admin does not intercept same-origin navigations, so no new window.
   const sessionParam = searchParams.get('session')
   if (sessionParam && (await verifySessionToken(sessionParam, secret))) {
-    console.log('[proxy] URL session token valid — issuing cookie, redirecting to Shopify admin')
-    const shop = process.env.SHOPIFY_SHOP
-    const target = shop && apiKey
-      ? `https://${shop}/admin/apps/${apiKey}`
-      : new URL('/', req.url).href
-    const res = NextResponse.redirect(target)
+    console.log('[proxy] URL session token valid — issuing cookie, redirecting to /')
+    const cleanUrl = new URL('/', req.url)
+    const res = NextResponse.redirect(cleanUrl)
     res.cookies.set('__shopify_session', sessionParam, {
       httpOnly: true,
       secure: true,
