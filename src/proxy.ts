@@ -111,18 +111,15 @@ export async function proxy(req: NextRequest) {
   }
 
   // RSC navigation from within the embedded app: Next.js client-side routing
-  // sends fetch requests with ?_rsc= and a same-origin Referer. Browsers may
-  // block SameSite=None cookies in cross-site iframes so we can't always
-  // persist a cookie; instead we let RSC fetches through when they originate
-  // from a page that the HMAC-verified initial load already rendered.
-  const referer = req.headers.get('referer')
-  if (searchParams.has('_rsc') && referer) {
-    try {
-      if (new URL(referer).origin === req.nextUrl.origin) {
-        console.log('[proxy] RSC navigation from same-origin, allowing through')
-        return NextResponse.next()
-      }
-    } catch { /* invalid referer — fall through to 403 */ }
+  // fetches with ?_rsc= and Accept: text/x-component. Browsers may block
+  // SameSite=None cookies in cross-site iframes (Referer is also unreliable
+  // in that context), so we identify RSC requests by their headers instead.
+  const isRscRequest =
+    searchParams.has('_rsc') &&
+    (req.headers.get('accept')?.includes('text/x-component') ?? false)
+  if (isRscRequest) {
+    console.log('[proxy] RSC navigation, allowing through')
+    return NextResponse.next()
   }
 
   // Session token passed in URL — stays within the iframe (same-origin redirect).
