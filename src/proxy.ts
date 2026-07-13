@@ -82,14 +82,12 @@ export async function proxy(req: NextRequest) {
         console.log('[proxy] embedded load fast-path → render')
         return NextResponse.next()
       }
-      // No session cookie — redirect to the clean URL (strip HMAC params) and
-      // set the cookie on the 302 response. A redirect Set-Cookie is stored
-      // more reliably than NextResponse.next() cookies in Next.js App Router.
-      // This is a same-origin redirect so Shopify admin won't intercept it.
-      console.log('[proxy] embedded load, no session → issuing cookie via redirect')
+      // No session cookie — HMAC is valid so allow the page to render.
+      // Also attempt to set a cookie; it persists if the browser allows
+      // SameSite=None in the cross-site iframe, giving a fast-path next time.
+      console.log('[proxy] embedded load, no session → render + attempt cookie')
       const sessionToken = await makeSessionToken(shop, secret)
-      const cleanUrl = new URL('/', req.url)
-      const res = NextResponse.redirect(cleanUrl)
+      const res = NextResponse.next()
       res.cookies.set('__shopify_session', sessionToken, {
         httpOnly: true,
         secure: true,
@@ -110,6 +108,21 @@ export async function proxy(req: NextRequest) {
   const cookie = req.cookies.get('__shopify_session')?.value
   if (cookie && (await verifySessionToken(cookie, secret))) {
     return NextResponse.next()
+  }
+
+  // RSC navigation from within the embedded app: Next.js client-side routing
+  // sends fetch requests with ?_rsc= and a same-origin Referer. Browsers may
+  // block SameSite=None cookies in cross-site iframes so we can't always
+  // persist a cookie; instead we let RSC fetches through when they originate
+  // from a page that the HMAC-verified initial load already rendered.
+  const referer = req.headers.get('referer')
+  if (searchParams.has('_rsc') && referer) {
+    try {
+      if (new URL(referer).origin === req.nextUrl.origin) {
+        console.log('[proxy] RSC navigation from same-origin, allowing through')
+        return NextResponse.next()
+      }
+    } catch { /* invalid referer — fall through to 403 */ }
   }
 
   // Session token passed in URL — stays within the iframe (same-origin redirect).
