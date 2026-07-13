@@ -62,6 +62,7 @@ export async function proxy(req: NextRequest) {
 
   // Shopify-signed URL (install or embedded load)
   if (searchParams.has('hmac') && searchParams.has('shop')) {
+    const shop = searchParams.get('shop')!
     const valid = await verifyShopifyHmac(searchParams, secret)
     console.log('[proxy] HMAC valid:', valid, 'hasHost:', searchParams.has('host'),
       'hasCookie:', !!req.cookies.get('__shopify_session'))
