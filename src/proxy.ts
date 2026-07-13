@@ -38,12 +38,23 @@ export async function proxy(req: NextRequest) {
   const secret = process.env.SHOPIFY_API_SECRET_KEY
   const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY
 
+  // Collect RSC signals early so they appear in the page-route log
+  const rscHeader = req.headers.get('rsc')
+  const hasRouterStateTree = req.headers.has('next-router-state-tree')
+  const hasRouterPrefetch = req.headers.has('next-router-prefetch')
+  const rscInRawUrl = req.url.includes('?_rsc=') || req.url.includes('&_rsc=')
+
   console.log('[proxy] page route', pathname, {
     hasHmac: searchParams.has('hmac'),
     hasShop: searchParams.has('shop'),
     secretSet: !!secret,
     apiKeySet: !!apiKey,
     hasCookie: !!req.cookies.get('__shopify_session'),
+    rscHeader,
+    hasRouterStateTree,
+    hasRouterPrefetch,
+    rscInRawUrl,
+    url: req.url.slice(0, 300),
   })
 
   if (!secret) {
@@ -110,16 +121,16 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // RSC navigation from within the embedded app: Next.js client-side routing
-  // fetches with ?_rsc= and Accept: text/x-component. Browsers may block
-  // SameSite=None cookies in cross-site iframes (Referer is also unreliable
-  // in that context), so we identify RSC requests by their headers instead.
-  // RSC navigation: Next.js router sets `rsc: 1` header on all client-side
-  // routing and prefetch fetches (see app-router-headers.js). Cookies don't
-  // persist in cross-site iframes so we identify RSC requests by this header
-  // and let them through. ?_rsc= in the URL may be stripped from req.nextUrl.
-  if (req.headers.get('rsc') === '1') {
-    console.log('[proxy] RSC navigation (rsc header), allowing through')
+  // Multi-signal RSC detection: cookies don't persist in cross-site iframes
+  // so we identify client-side navigation fetches by any of four signals.
+  // rscHeader is the canonical signal; the others guard against Vercel Edge
+  // or Next.js 16 normalising/stripping the `rsc` header before middleware
+  // sees it.  req.url (raw string) is used for the URL check because
+  // req.nextUrl strips the internal `_rsc` param before middleware receives it.
+  if (rscHeader === '1' || hasRouterStateTree || hasRouterPrefetch || rscInRawUrl) {
+    console.log('[proxy] RSC navigation detected, allowing through', {
+      rscHeader, hasRouterStateTree, hasRouterPrefetch, rscInRawUrl,
+    })
     return NextResponse.next()
   }
 
