@@ -36,16 +36,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(startUrl)
   }
 
-  // App is installed — issue a session cookie so this staff member can use the app
+  // App is installed — break out of the Shopify iframe so the cookie lands at
+  // top-level (not cross-site), which browsers won't block. The proxy handles
+  // the ?session= param, sets the cookie, then strips the param.
   console.log('[auth/session] app installed, issuing session for shop:', shop)
   const sessionToken = await makeSessionToken(shop, secret)
-  const res = NextResponse.redirect(new URL('/', req.url))
-  res.cookies.set('__shopify_session', sessionToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    maxAge: 30 * 24 * 60 * 60,
-    path: '/',
-  })
-  return res
+  const redirectUrl = new URL('/', req.url)
+  redirectUrl.searchParams.set('session', sessionToken)
+  return new NextResponse(
+    `<!DOCTYPE html><html><head></head><body>
+      <script>window.top.location.href = ${JSON.stringify(redirectUrl.toString())}</script>
+    </body></html>`,
+    { headers: { 'Content-Type': 'text/html' } },
+  )
 }

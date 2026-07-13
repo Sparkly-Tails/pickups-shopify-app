@@ -102,6 +102,25 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // Session token passed in URL (auth/session broke out of Shopify iframe via
+  // window.top.location.href to land at top-level, bypassing third-party cookie
+  // blocking). Verify it, set the cookie, then redirect to the clean URL.
+  const sessionParam = searchParams.get('session')
+  if (sessionParam && (await verifySessionToken(sessionParam, secret))) {
+    console.log('[proxy] URL session token valid — issuing cookie and redirecting')
+    const cleanUrl = new URL(req.url)
+    cleanUrl.searchParams.delete('session')
+    const res = NextResponse.redirect(cleanUrl)
+    res.cookies.set('__shopify_session', sessionParam, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      maxAge: 30 * 24 * 60 * 60,
+      path: '/',
+    })
+    return res
+  }
+
   // No valid session — show a message directing staff to open from Shopify admin
   const shop = process.env.SHOPIFY_SHOP
   return new NextResponse(
