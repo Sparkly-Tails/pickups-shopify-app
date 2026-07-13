@@ -37,6 +37,10 @@ export async function GET(req: NextRequest) {
 
   const hasCookie = !!req.cookies.get('__shopify_session')
 
+  const shopifyAdminRedirectUrl = shop && apiKey
+    ? `https://${shop}/admin/apps/${apiKey}`
+    : null
+
   return NextResponse.json({
     oauth: {
       callbackUrl,
@@ -54,6 +58,10 @@ export async function GET(req: NextRequest) {
       shop,
       status: mongoTokenStatus,
       note: 'If token is stored and you need a clean reinstall, clear the __shopify_session cookie in your browser first',
+    },
+    staffAuth: {
+      shopifyAdminRedirectUrl,
+      status: shopifyAdminRedirectUrl ? 'OK — proxy will redirect here after issuing staff session cookie' : 'BROKEN — SHOPIFY_SHOP or NEXT_PUBLIC_SHOPIFY_API_KEY missing; staff will land on standalone app instead of Shopify admin',
     },
     env: {
       SHOPIFY_API_SECRET_KEY: process.env.SHOPIFY_API_SECRET_KEY

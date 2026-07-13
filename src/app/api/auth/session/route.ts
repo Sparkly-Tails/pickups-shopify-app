@@ -38,14 +38,30 @@ export async function GET(req: NextRequest) {
 
   // App is installed — break out of the Shopify iframe so the cookie lands at
   // top-level (not cross-site), which browsers won't block. The proxy handles
-  // the ?session= param, sets the cookie, then strips the param.
+  // the ?session= param, sets the cookie, then redirects back to Shopify admin.
+  //
+  // We use a link with target="_top" + onclick rather than window.top.location.href
+  // directly: Shopify's iframe sandbox requires a user gesture for top-navigation,
+  // and without one Chrome opens a new window instead of navigating in place.
   console.log('[auth/session] app installed, issuing session for shop:', shop)
   const sessionToken = await makeSessionToken(shop, secret)
   const redirectUrl = new URL('/', req.url)
   redirectUrl.searchParams.set('session', sessionToken)
+  const href = JSON.stringify(redirectUrl.toString())
   return new NextResponse(
-    `<!DOCTYPE html><html><head></head><body>
-      <script>window.top.location.href = ${JSON.stringify(redirectUrl.toString())}</script>
+    `<!DOCTYPE html><html>
+    <head><title>Loading…</title>
+    <style>
+      body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;
+           justify-content:center;height:100vh;margin:0;background:#f6f6f7}
+      a{display:inline-block;padding:12px 28px;background:#000;color:#fff;
+        border-radius:6px;text-decoration:none;font-size:15px}
+    </style>
+    </head>
+    <body>
+      <p style="margin-bottom:16px;color:#6d7175">Opening Pickup App…</p>
+      <a id="btn" href=${href} target="_top">Open app →</a>
+      <script>document.getElementById('btn').click()</script>
     </body></html>`,
     { headers: { 'Content-Type': 'text/html' } },
   )
