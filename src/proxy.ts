@@ -114,10 +114,10 @@ export async function proxy(req: NextRequest) {
   // fetches with ?_rsc= and Accept: text/x-component. Browsers may block
   // SameSite=None cookies in cross-site iframes (Referer is also unreliable
   // in that context), so we identify RSC requests by their headers instead.
-  const isRscRequest =
-    searchParams.has('_rsc') &&
-    (req.headers.get('accept')?.includes('text/x-component') ?? false)
-  if (isRscRequest) {
+  // RSC navigation: Next.js router always adds ?_rsc= on client-side routing
+  // and prefetch requests. Cookies don't persist in cross-site iframes so we
+  // identify these by the param alone and let them through.
+  if (searchParams.has('_rsc')) {
     console.log('[proxy] RSC navigation, allowing through')
     return NextResponse.next()
   }
