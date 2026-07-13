@@ -72,22 +72,30 @@ export async function proxy(req: NextRequest) {
       )
     }
 
-    // Fast-path: embedded load from Shopify admin (has `host` param) with a
-    // valid session cookie → render directly. Partners install URLs do NOT
-    // include `host`, so this never fires during a fresh install, which
-    // always falls through to auth/start → OAuth below.
+    // Fast-path: embedded load from Shopify admin (has `host` param).
+    // Partners install URLs do NOT include `host`, so this never fires during
+    // a fresh install, which always falls through to auth/start → OAuth below.
     if (searchParams.has('host')) {
       const cookie = req.cookies.get('__shopify_session')?.value
       if (cookie && (await verifySessionToken(cookie, secret))) {
         console.log('[proxy] embedded load fast-path → render')
         return NextResponse.next()
       }
-      // Embedded load but no session (e.g. staff with limited permissions who
-      // can't run OAuth). Hand off to auth/session which issues a cookie if
-      // the app is already installed, or falls back to OAuth if not.
-      const sessionUrl = new URL('/api/auth/session', req.url)
-      searchParams.forEach((v, k) => sessionUrl.searchParams.set(k, v))
-      return NextResponse.redirect(sessionUrl)
+      // No session cookie — issue one inline on this response.
+      // Setting the cookie here (not in a redirect) is the most reliable way
+      // to get the browser to store it; redirect-chain Set-Cookie in cross-site
+      // iframes can be silently dropped by Chrome's third-party cookie rules.
+      console.log('[proxy] embedded load, no session → issuing cookie inline')
+      const sessionToken = await makeSessionToken(shop, secret)
+      const res = NextResponse.next()
+      res.cookies.set('__shopify_session', sessionToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        maxAge: 30 * 24 * 60 * 60,
+        path: '/',
+      })
+      return res
     }
 
     // No `host` → Partners install URL → always run OAuth.
