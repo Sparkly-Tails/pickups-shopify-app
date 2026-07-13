@@ -82,13 +82,14 @@ export async function proxy(req: NextRequest) {
         console.log('[proxy] embedded load fast-path → render')
         return NextResponse.next()
       }
-      // No session cookie — issue one inline on this response.
-      // Setting the cookie here (not in a redirect) is the most reliable way
-      // to get the browser to store it; redirect-chain Set-Cookie in cross-site
-      // iframes can be silently dropped by Chrome's third-party cookie rules.
-      console.log('[proxy] embedded load, no session → issuing cookie inline')
+      // No session cookie — redirect to the clean URL (strip HMAC params) and
+      // set the cookie on the 302 response. A redirect Set-Cookie is stored
+      // more reliably than NextResponse.next() cookies in Next.js App Router.
+      // This is a same-origin redirect so Shopify admin won't intercept it.
+      console.log('[proxy] embedded load, no session → issuing cookie via redirect')
       const sessionToken = await makeSessionToken(shop, secret)
-      const res = NextResponse.next()
+      const cleanUrl = new URL('/', req.url)
+      const res = NextResponse.redirect(cleanUrl)
       res.cookies.set('__shopify_session', sessionToken, {
         httpOnly: true,
         secure: true,
