@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pickups
 
-## Getting Started
+A private Shopify app for Sparkly Tails staff to track pet food subscription pickups in-store. Replaces the old Google Sheets tracker.
 
-First, run the development server:
+## What it does
+
+- Shows which subscription customers are due for a pickup and what's left in their current order
+- Lets staff check off items as picked up, swapped for a different product, or skipped
+- Automatically emails the customer a pickup confirmation via Klaviyo
+- Keeps a full pickup history per customer
+
+## Using the app
+
+Open **Pickups** from the Shopify admin (desktop or the Shopify mobile app) — it only works launched from there, not as a standalone website.
+
+1. **Homepage** — customers due for a pickup are listed under "In Progress." Tap a customer to open their page.
+2. **Confirm a pickup** — on the customer's page, mark each item as **Picked**, **Swapped** (pick a replacement), or **Skipped**, then submit. This sends the confirmation email automatically.
+3. **Start a new cycle** — once all items on an order are accounted for, the customer moves to "Ready for New Cycle." Open their page and load their next unfulfilled Shopify order.
+4. **Add a customer** — use the **+ Add new customer** button on the homepage.
+5. **Dashboard** — the link at the top of the homepage shows pickup history across all customers.
+
+If the app won't open or shows an "Access restricted" message, close and reopen it from the Shopify admin — it doesn't work if bookmarked or opened directly.
+
+## For developers
+
+Stack: Next.js (App Router) · MongoDB Atlas · Shopify Admin API · Klaviyo · Vercel.
 
 ```bash
+npm install
+cp .env.local.example .env.local   # fill in real values
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Env vars are documented in `.env.local.example`. Never commit `.env.local` or put secrets in `NEXT_PUBLIC_` variables.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Deploys to Vercel on push to `main`. Bump the `version` in `package.json` with every change — it's shown in the app header, which is the fastest way to confirm a deploy landed.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+More detail:
+- [`docs/specs/`](docs/specs) — original design spec (some sections predate the current order-based flow; the source code is the source of truth)
+- [`docs/plans/`](docs/plans) — implementation plan
