@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,7 +28,14 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* TEMPORARY: only for /app-bridge-test diagnostics. beforeInteractive
+            is required so the script loads blocking/in-order — App Bridge
+            warns when loaded async. Root layout is the only place Next.js
+            allows this strategy. Remove once the investigation is done. */}
+        <Script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" strategy="beforeInteractive" />
+        {children}
+      </body>
     </html>
   );
 }

@@ -36,6 +36,13 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next()
   }
 
+  // TEMPORARY: App Bridge diagnostic page must be reachable regardless of
+  // session state — that's the point of it. Delete this exemption and the
+  // route itself once the session-token investigation is done.
+  if (pathname.startsWith('/app-bridge-test')) {
+    return NextResponse.next()
+  }
+
   // API routes: Bearer token auth (auth routes and webhooks are exempt)
   if (pathname.startsWith('/api/')) {
     if (

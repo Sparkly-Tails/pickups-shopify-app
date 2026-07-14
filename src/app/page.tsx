@@ -104,6 +104,12 @@ export default async function Home() {
       >
         + Add new customer
       </Link>
+
+      {/* TEMPORARY diagnostic link — plain <a> (full page load, not RSC nav).
+          Remove once the App Bridge investigation is done. */}
+      <a href="/app-bridge-test" className="mt-4 block text-center text-xs text-gray-300">
+        App Bridge diagnostics
+      </a>
     </main>
   )
 }
