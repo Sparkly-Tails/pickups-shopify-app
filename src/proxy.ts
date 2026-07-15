@@ -145,8 +145,14 @@ export async function proxy(req: NextRequest) {
   // cookie does when the cookie doesn't survive.
   const authHeader = req.headers.get('authorization')
   const bridgeToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  console.log('[proxy] app-bridge check', {
+    hasAuthHeader: !!authHeader,
+    hasBridgeToken: !!bridgeToken,
+    shopEnvSet: !!process.env.SHOPIFY_SHOP,
+  })
   if (bridgeToken && process.env.SHOPIFY_SHOP) {
     const validBridgeToken = await verifyAppBridgeToken(bridgeToken, secret, process.env.SHOPIFY_SHOP)
+    console.log('[proxy] app-bridge token valid:', validBridgeToken)
     if (validBridgeToken) {
       return NextResponse.next()
     }
