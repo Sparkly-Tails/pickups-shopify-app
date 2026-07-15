@@ -33,11 +33,18 @@ export default function RootLayout({
         {/* Cookie-free auth path (see AppBridgeAuthProvider + proxy.ts
             verifyAppBridgeToken): the session cookie doesn't reliably
             persist in every embedding context (confirmed: works on iPhone
-            Shopify app, fails on iPad Shopify app). beforeInteractive is
-            required so the script loads blocking/in-order — App Bridge
-            warns when loaded async, and root layout is the only place
-            Next.js allows this strategy. */}
-        <Script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" strategy="beforeInteractive" />
+            Shopify app, fails on iPad Shopify app).
+            strategy="afterInteractive" (not beforeInteractive): loading this
+            blocking caused the whole app to hang on a cold launch from the
+            iPad Shopify app (infinite spinner) — beforeInteractive makes
+            Next.js inject the script into the initial HTML and blocks
+            hydration/paint until it finishes executing, which apparently
+            deadlocks against however Shopify's iPad app chrome sequences
+            its own readiness handshake. App Bridge logs a cosmetic "loaded
+            async" warning with afterInteractive, but functions correctly
+            (idToken() was already confirmed working this way) — a console
+            warning beats a hung app. */}
+        <Script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" strategy="afterInteractive" />
         <AppBridgeAuthProvider />
         {children}
       </body>
