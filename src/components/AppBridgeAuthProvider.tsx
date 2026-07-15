@@ -3,6 +3,19 @@
 import { useEffect } from 'react'
 
 type ShopifyGlobal = { idToken?: () => Promise<string> }
+type WindowWithShopify = { shopify?: ShopifyGlobal; __appBridgeFetchPatched?: boolean }
+
+// Extended for diagnosis: the previous 8s timeout for window.shopify to
+// appear was hit almost exactly (8001ms) with zero errors thrown, which
+// only proves the timeout fired — it says nothing about whether App
+// Bridge's handshake with the Shopify iPad app's parent frame would
+// eventually succeed given more time. The one earlier case where it WAS
+// confirmed working (the original diagnostic-page test) happened well
+// after the homepage had already been open for a while, not on a cold
+// check — so "just needs more time" is a live hypothesis worth testing
+// before assuming App Bridge can't work here at all. Tune back down once
+// the real distribution is known.
+const SHOPIFY_WAIT_TIMEOUT_MS = 20000
 
 // TEMPORARY diagnostic beacon: reports what happens in this component to
 // /api/debug/client-log, since there's no way to see browser console output
@@ -16,6 +29,26 @@ function report(originalFetch: typeof fetch, event: string, data: Record<string,
   }).catch(() => {})
 }
 
+// Resolves once window.shopify appears, or null after timeoutMs. Memoized
+// per mount (see useEffect below) so every same-origin fetch shares the
+// SAME wait instead of each starting its own independent poll+timeout.
+function waitForShopify(w: WindowWithShopify, timeoutMs: number): Promise<ShopifyGlobal | null> {
+  if (w.shopify) return Promise.resolve(w.shopify)
+  return new Promise(resolve => {
+    const interval = setInterval(() => {
+      if (w.shopify) {
+        clearInterval(interval)
+        clearTimeout(timeout)
+        resolve(w.shopify)
+      }
+    }, 100)
+    const timeout = setTimeout(() => {
+      clearInterval(interval)
+      resolve(null)
+    }, timeoutMs)
+  })
+}
+
 // Attaches a fresh App Bridge session token as an Authorization header to
 // every same-origin fetch — this is what makes proxy.ts's verifyAppBridgeToken
 // check work for Next.js client-side/RSC navigation, Server Actions, etc.
@@ -27,11 +60,7 @@ function report(originalFetch: typeof fetch, event: string, data: Record<string,
 // the App Bridge <Script> tag.
 export default function AppBridgeAuthProvider() {
   useEffect(() => {
-    const w = window as unknown as {
-      shopify?: ShopifyGlobal
-      __appBridgeFetchPatched?: boolean
-    }
-
+    const w = window as unknown as WindowWithShopify
     const originalFetch = window.fetch.bind(window)
 
     // Report unconditionally, first thing, so a total absence of client-log
@@ -63,28 +92,24 @@ export default function AppBridgeAuthProvider() {
     w.__appBridgeFetchPatched = true
 
     const origin = window.location.origin
-
-    // One-time diagnostic: does window.shopify appear on THIS mount (every
-    // page, not just the manually-clicked diagnostic page), and does
-    // idToken() resolve from here.
     const mountStart = Date.now()
-    const pollInterval = setInterval(() => {
-      if (w.shopify) {
-        clearInterval(pollInterval)
-        report(originalFetch, 'shopify_global_appeared', { ms: Date.now() - mountStart })
-        w.shopify.idToken?.()
-          .then(token =>
-            report(originalFetch, 'idtoken_ok', { ms: Date.now() - mountStart, len: token.length }))
-          .catch(err =>
-            report(originalFetch, 'idtoken_error', { ms: Date.now() - mountStart, error: String(err) }))
+    const shopifyReady = waitForShopify(w, SHOPIFY_WAIT_TIMEOUT_MS)
+
+    shopifyReady.then(shopify => {
+      if (!shopify) {
+        report(originalFetch, 'shopify_global_timeout', {
+          ms: Date.now() - mountStart,
+          timeoutMs: SHOPIFY_WAIT_TIMEOUT_MS,
+        })
+        return
       }
-    }, 100)
-    setTimeout(() => {
-      clearInterval(pollInterval)
-      if (!w.shopify) {
-        report(originalFetch, 'shopify_global_timeout', { ms: Date.now() - mountStart })
-      }
-    }, 8000)
+      report(originalFetch, 'shopify_global_appeared', { ms: Date.now() - mountStart })
+      shopify.idToken?.()
+        .then(token =>
+          report(originalFetch, 'idtoken_ok', { ms: Date.now() - mountStart, len: token.length }))
+        .catch(err =>
+          report(originalFetch, 'idtoken_error', { ms: Date.now() - mountStart, error: String(err) }))
+    })
 
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       // Only string/URL inputs are handled — Request-object inputs pass
@@ -100,21 +125,30 @@ export default function AppBridgeAuthProvider() {
       const isSameOrigin = url.startsWith('/') || url.startsWith(origin)
       const alreadyHasAuth = init?.headers ? new Headers(init.headers).has('Authorization') : false
 
-      if (isSameOrigin && !alreadyHasAuth && w.shopify?.idToken) {
-        try {
-          const token = await w.shopify.idToken()
-          const headers = new Headers(init?.headers)
-          headers.set('Authorization', `Bearer ${token}`)
-          report(originalFetch, 'fetch_patched', { url })
-          return originalFetch(url, { ...init, headers })
-        } catch (err) {
-          // App Bridge unavailable or idToken() failed — fall through to a
-          // plain fetch. proxy.ts still accepts the session cookie if that
-          // happens to be present, so this isn't a hard failure.
-          report(originalFetch, 'fetch_patch_failed', { url, error: String(err) })
+      if (isSameOrigin && !alreadyHasAuth) {
+        const waitStart = Date.now()
+        // Wait for the SAME shared readiness promise as the mount-time
+        // diagnostic, instead of an instant synchronous check — a fetch
+        // that fires before App Bridge is ready no longer gives up
+        // immediately, it waits (capped) for App Bridge to become ready.
+        const shopify = await shopifyReady
+        if (shopify?.idToken) {
+          try {
+            const token = await shopify.idToken()
+            const headers = new Headers(init?.headers)
+            headers.set('Authorization', `Bearer ${token}`)
+            report(originalFetch, 'fetch_patched', { url, waitedMs: Date.now() - waitStart })
+            return originalFetch(url, { ...init, headers })
+          } catch (err) {
+            // idToken() failed even though window.shopify exists — fall
+            // through to a plain fetch. proxy.ts still accepts the session
+            // cookie if that happens to be present, so this isn't a hard
+            // failure.
+            report(originalFetch, 'fetch_patch_failed', { url, error: String(err) })
+          }
+        } else {
+          report(originalFetch, 'fetch_skipped_no_shopify', { url, waitedMs: Date.now() - waitStart })
         }
-      } else if (isSameOrigin && !alreadyHasAuth) {
-        report(originalFetch, 'fetch_skipped_no_shopify', { url })
       }
 
       return originalFetch(input, init)
