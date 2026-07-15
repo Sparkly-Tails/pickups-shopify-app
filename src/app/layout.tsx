@@ -17,6 +17,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Sparkly Tails Pickups",
   description: "Pickup confirmation app",
+  // Required by App Bridge for it to identify itself to the parent frame
+  // during its handshake — must be present in the server-rendered initial
+  // HTML, not added client-side (Next's `metadata` export guarantees this).
+  // Its absence is the most likely explanation for window.shopify never
+  // appearing on iPad despite the script loading with zero errors: no
+  // meta tag means App Bridge can't complete the handshake, but nothing
+  // about that failure mode throws — it just silently never resolves,
+  // which matches every iPad log capture so far exactly.
+  other: {
+    "shopify-api-key": process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || "",
+  },
 };
 
 export default function RootLayout({
