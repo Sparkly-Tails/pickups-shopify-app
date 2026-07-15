@@ -31,10 +31,29 @@ export default function AppBridgeAuthProvider() {
       shopify?: ShopifyGlobal
       __appBridgeFetchPatched?: boolean
     }
+
+    const originalFetch = window.fetch.bind(window)
+
+    // Report unconditionally, first thing, so a total absence of client-log
+    // entries can never happen again — a prior version of this diagnostic
+    // only reported on success, so "window.shopify never appeared" and
+    // "this component never even mounted" were indistinguishable from
+    // silence in the logs.
+    report(originalFetch, 'provider_mounted', {
+      alreadyPatched: !!w.__appBridgeFetchPatched,
+      hasShopifyAtMount: !!w.shopify,
+    })
+
+    window.addEventListener('error', e => {
+      report(originalFetch, 'window_error', { message: e.message, filename: e.filename })
+    })
+    window.addEventListener('unhandledrejection', e => {
+      report(originalFetch, 'unhandled_rejection', { reason: String(e.reason) })
+    })
+
     if (w.__appBridgeFetchPatched) return
     w.__appBridgeFetchPatched = true
 
-    const originalFetch = window.fetch.bind(window)
     const origin = window.location.origin
 
     // One-time diagnostic: does window.shopify appear on THIS mount (every
@@ -52,7 +71,12 @@ export default function AppBridgeAuthProvider() {
             report(originalFetch, 'idtoken_error', { ms: Date.now() - mountStart, error: String(err) }))
       }
     }, 100)
-    setTimeout(() => clearInterval(pollInterval), 8000)
+    setTimeout(() => {
+      clearInterval(pollInterval)
+      if (!w.shopify) {
+        report(originalFetch, 'shopify_global_timeout', { ms: Date.now() - mountStart })
+      }
+    }, 8000)
 
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       // Only string/URL inputs are handled — Request-object inputs pass
@@ -81,6 +105,8 @@ export default function AppBridgeAuthProvider() {
           // happens to be present, so this isn't a hard failure.
           report(originalFetch, 'fetch_patch_failed', { url, error: String(err) })
         }
+      } else if (isSameOrigin && !alreadyHasAuth) {
+        report(originalFetch, 'fetch_skipped_no_shopify', { url })
       }
 
       return originalFetch(input, init)
