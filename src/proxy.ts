@@ -4,6 +4,7 @@ import {
   verifyShopifyHmac,
   makeSessionToken,
   verifySessionToken,
+  verifyAppBridgeToken,
 } from '@/lib/shopify-auth'
 
 // Cookie options shared by every place we issue the session cookie.
@@ -133,6 +134,22 @@ export async function proxy(req: NextRequest) {
   const cookie = req.cookies.get('__shopify_session')?.value
   if (cookie && (await verifySessionToken(cookie, secret))) {
     return NextResponse.next()
+  }
+
+  // App Bridge session token (JWT) — cookie-free auth path. Some embedding
+  // contexts don't reliably persist any cookie regardless of attributes
+  // (confirmed: works on iPhone Shopify app, fails on iPad Shopify app,
+  // despite both using the same Partitioned cookie). The client attaches a
+  // fresh token from shopify.idToken() as an Authorization header to every
+  // same-origin fetch, so this covers RSC navigation the same way the
+  // cookie does when the cookie doesn't survive.
+  const authHeader = req.headers.get('authorization')
+  const bridgeToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  if (bridgeToken && process.env.SHOPIFY_SHOP) {
+    const validBridgeToken = await verifyAppBridgeToken(bridgeToken, secret, process.env.SHOPIFY_SHOP)
+    if (validBridgeToken) {
+      return NextResponse.next()
+    }
   }
 
   // Session token passed in URL — stays within the iframe (same-origin redirect).

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import AppBridgeAuthProvider from "@/components/AppBridgeAuthProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,11 +30,15 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        {/* TEMPORARY: only for /app-bridge-test diagnostics. beforeInteractive
-            is required so the script loads blocking/in-order — App Bridge
-            warns when loaded async. Root layout is the only place Next.js
-            allows this strategy. Remove once the investigation is done. */}
+        {/* Cookie-free auth path (see AppBridgeAuthProvider + proxy.ts
+            verifyAppBridgeToken): the session cookie doesn't reliably
+            persist in every embedding context (confirmed: works on iPhone
+            Shopify app, fails on iPad Shopify app). beforeInteractive is
+            required so the script loads blocking/in-order — App Bridge
+            warns when loaded async, and root layout is the only place
+            Next.js allows this strategy. */}
         <Script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" strategy="beforeInteractive" />
+        <AppBridgeAuthProvider />
         {children}
       </body>
     </html>
