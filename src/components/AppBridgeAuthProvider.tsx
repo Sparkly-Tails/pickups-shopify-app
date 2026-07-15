@@ -45,7 +45,15 @@ export default function AppBridgeAuthProvider() {
     })
 
     window.addEventListener('error', e => {
-      report(originalFetch, 'window_error', { message: e.message, filename: e.filename })
+      report(originalFetch, 'window_error', {
+        message: e.message,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno,
+        errorName: e.error?.name,
+        errorMessage: e.error?.message,
+        errorStack: e.error?.stack,
+      })
     })
     window.addEventListener('unhandledrejection', e => {
       report(originalFetch, 'unhandled_rejection', { reason: String(e.reason) })

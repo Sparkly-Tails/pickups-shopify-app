@@ -34,17 +34,30 @@ export default function RootLayout({
             verifyAppBridgeToken): the session cookie doesn't reliably
             persist in every embedding context (confirmed: works on iPhone
             Shopify app, fails on iPad Shopify app).
-            strategy="afterInteractive" (not beforeInteractive): loading this
-            blocking caused the whole app to hang on a cold launch from the
-            iPad Shopify app (infinite spinner) — beforeInteractive makes
-            Next.js inject the script into the initial HTML and blocks
-            hydration/paint until it finishes executing, which apparently
-            deadlocks against however Shopify's iPad app chrome sequences
-            its own readiness handshake. App Bridge logs a cosmetic "loaded
-            async" warning with afterInteractive, but functions correctly
-            (idToken() was already confirmed working this way) — a console
-            warning beats a hung app. */}
-        <Script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" strategy="afterInteractive" />
+            strategy="beforeInteractive" is NOT optional — confirmed via
+            crossOrigin (below) exposing the real error: App Bridge's own
+            script has a hard guard that ABORTS its entire initialization
+            unless it is literally the first <script> tag, loaded
+            synchronously with no async/defer/module. strategy=
+            "afterInteractive" (tried in v0.3.57 to fix a cold-launch hang)
+            inserts the script via JS after hydration — never first, always
+            async — so App Bridge silently refused to initialize on every
+            single load. beforeInteractive is the only strategy Next.js
+            offers that satisfies this, and only works in the root layout.
+            The earlier cold-launch hang under beforeInteractive needs
+            separate investigation; it isn't caused by App Bridge itself.
+            crossOrigin="anonymous": cdn.shopify.com serves
+            access-control-allow-origin: *, and without this attribute the
+            browser redacts any uncaught exception the script throws down to
+            a useless "Script error." with no message/stack — this is what
+            revealed the abort-guard message above. Keep it: it's the only
+            way AppBridgeAuthProvider's error listener can see real errors
+            from this script. */}
+        <Script
+          src="https://cdn.shopify.com/shopifycloud/app-bridge.js"
+          strategy="beforeInteractive"
+          crossOrigin="anonymous"
+        />
         <AppBridgeAuthProvider />
         {children}
       </body>
