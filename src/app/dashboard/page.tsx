@@ -55,7 +55,7 @@ export default async function Dashboard() {
                       ? 'bg-green-50 text-green-700'
                       : item.status === 'swapped'
                       ? 'bg-yellow-50 text-yellow-700'
-                      : 'bg-gray-100 text-gray-400 line-through'
+                      : 'bg-gray-100 text-gray-600 line-through'
                   }`}
                 >
                   {item.qty}× {item.replacement?.name ?? item.productName}
@@ -63,7 +63,7 @@ export default async function Dashboard() {
               ))}
             </div>
             {event.notes && (
-              <p className="mt-1 text-xs text-gray-400 italic">{event.notes}</p>
+              <p className="mt-1 text-xs text-gray-600 italic">{event.notes}</p>
             )}
           </div>
         ))}

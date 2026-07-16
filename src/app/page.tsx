@@ -59,7 +59,7 @@ export default async function Home() {
     <main className="w-[70%] max-w-2xl mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">
-          Pickups <span className="text-xs font-normal text-gray-400">v{version}</span>
+          Pickups <span className="text-xs font-normal text-gray-600">v{version}</span>
         </h1>
         <AuthLink href="/dashboard" token={token} className="text-sm text-blue-600">
           Dashboard →
@@ -125,7 +125,7 @@ function CustomerRow({ customer, dim, token }: { customer: ICustomer; dim?: bool
           <p className="text-sm text-gray-500 dark:text-gray-400">{customer.email}</p>
         </div>
         {dim && (
-          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+          <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 whitespace-nowrap">
             New cycle
           </span>
         )}

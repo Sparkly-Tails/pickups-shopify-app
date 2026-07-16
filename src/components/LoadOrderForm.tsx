@@ -14,17 +14,25 @@ export default function LoadOrderForm({
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleLoad(order: ShopifyOrder) {
     setLoading(true)
-    const orderItems = order.lineItems.map(li => ({
-      shopifyLineItemId: li.id,
-      productName: li.title,
-      qty: li.quantity,
-      imageUrl: li.imageUrl,
-    }))
-    await loadNewOrder(customerId, order.id, orderItems)
-    router.refresh()
+    setError('')
+    try {
+      const orderItems = order.lineItems.map(li => ({
+        shopifyLineItemId: li.id,
+        productName: li.title,
+        qty: li.quantity,
+        imageUrl: li.imageUrl,
+      }))
+      await loadNewOrder(customerId, order.id, orderItems)
+      router.refresh()
+    } catch (err) {
+      console.error('Failed to load order:', err)
+      setError("Couldn't load this order. Check your connection and try again.")
+      setLoading(false)
+    }
   }
 
   if (orders.length === 0) {
@@ -50,7 +58,7 @@ export default function LoadOrderForm({
             <button
               onClick={() => handleLoad(order)}
               disabled={loading}
-              className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg disabled:opacity-50"
+              className="text-sm bg-blue-600 text-white px-4 min-h-11 rounded-lg disabled:opacity-50"
             >
               {loading ? 'Loading…' : 'Load order'}
             </button>
@@ -64,6 +72,11 @@ export default function LoadOrderForm({
           </ul>
         </div>
       ))}
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

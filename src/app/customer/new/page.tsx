@@ -37,10 +37,11 @@ export default function NewCustomerPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="customer-email" className="block text-sm font-medium text-gray-700 mb-1">
             Customer email
           </label>
           <input
+            id="customer-email"
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
@@ -51,7 +52,7 @@ export default function NewCustomerPage() {
         </div>
 
         {error && (
-          <p className="text-red-600 text-sm">{error}</p>
+          <p role="alert" className="text-red-600 text-sm">{error}</p>
         )}
 
         <button
@@ -63,7 +64,7 @@ export default function NewCustomerPage() {
         </button>
       </form>
 
-      <p className="mt-4 text-xs text-gray-400 text-center">
+      <p className="mt-4 text-xs text-gray-600 text-center">
         Searches Shopify by email. If the customer has one unfulfilled order, it will be loaded automatically.
       </p>
     </main>

@@ -43,6 +43,7 @@ export default function PickupForm({
   const [testMode, setTestMode] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [done, setDone] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [swapError, setSwapError] = useState<number | null>(null);
@@ -82,7 +83,6 @@ export default function PickupForm({
     }
     debounceRef.current = setTimeout(async () => {
       const results = await searchProductsAction(value);
-      console.log("search results", results);
       setSearchResults((prev) => ({ ...prev, [idx]: results }));
       setSearchOpen(idx);
     }, 300);
@@ -107,6 +107,7 @@ export default function PickupForm({
       return;
     }
     setSwapError(null);
+    setSubmitError("");
     setSubmitting(true);
     try {
       const payload: IPickupItem[] = items.map((i) => ({
@@ -127,7 +128,7 @@ export default function PickupForm({
       setDone(true);
     } catch (err) {
       console.error("Pickup failed:", err);
-      alert("Something went wrong. Please try again.");
+      setSubmitError("Couldn't confirm this pickup. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -161,7 +162,7 @@ export default function PickupForm({
             <div className="flex-1 min-w-0">
               <p className="font-medium truncate">{item.productName}</p>
               {item.totalUnits > 1 && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-600">
                   Unit {item.unitNumber} of {item.totalUnits}
                 </p>
               )}
@@ -172,12 +173,12 @@ export default function PickupForm({
                   key={s}
                   aria-pressed={item.status === s}
                   onClick={() => setStatus(idx, s)}
-                  className={`text-xs px-3 py-2 min-h-[36px] rounded-full border capitalize transition-colors ${
+                  className={`text-xs px-3 py-2 min-h-11 rounded-full border capitalize transition-colors ${
                     item.status === s
                       ? s === "skipped"
-                        ? "bg-gray-100 text-gray-500 border-gray-300"
-                        : "bg-gray-400 text-white border-gray-400"
-                      : "bg-white text-gray-400 border-gray-200"
+                        ? "bg-gray-100 text-gray-600 border-gray-300"
+                        : "bg-gray-600 text-white border-gray-600"
+                      : "bg-white text-gray-600 border-gray-200"
                   }`}
                 >
                   {s}
@@ -190,6 +191,7 @@ export default function PickupForm({
             <div className="mt-2 relative">
               <input
                 type="text"
+                aria-label={`Replacement product for ${item.productName}`}
                 placeholder="Search replacement product…"
                 value={item.replacement}
                 onChange={(e) => setReplacement(idx, e.target.value)}
@@ -198,7 +200,7 @@ export default function PickupForm({
                 className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 ${swapError === idx ? "border-red-400" : ""}`}
               />
               {swapError === idx && (
-                <p className="mt-1 text-xs text-red-500">
+                <p role="alert" className="mt-1 text-xs text-red-500">
                   Enter a replacement product name.
                 </p>
               )}
@@ -244,6 +246,7 @@ export default function PickupForm({
         {testMode && (
           <input
             type="email"
+            aria-label="Test email address"
             value={testEmail}
             onChange={(e) => setTestEmail(e.target.value)}
             placeholder="test@example.com"
@@ -251,6 +254,12 @@ export default function PickupForm({
           />
         )}
       </div>
+
+      {submitError && (
+        <p role="alert" className="text-sm text-red-600">
+          {submitError}
+        </p>
+      )}
 
       <button
         onClick={handleSubmit}

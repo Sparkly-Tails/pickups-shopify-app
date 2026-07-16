@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import AuthLink from '@/components/AuthLink'
+import ConfirmSubmitButton from '@/components/ConfirmSubmitButton'
 import { connectDB } from '@/lib/mongodb'
 import { CustomerModel, IOrderItem } from '@/models/Customer'
 import { PickupEventModel, IPickupItem } from '@/models/PickupEvent'
@@ -133,7 +134,7 @@ export default async function CustomerPage({
                           ? 'bg-green-50 text-green-700'
                           : item.status === 'swapped'
                           ? 'bg-yellow-50 text-yellow-700'
-                          : 'bg-gray-100 text-gray-400 line-through'
+                          : 'bg-gray-100 text-gray-600 line-through'
                       }`}
                     >
                       {item.qty}× {item.replacement?.name ?? item.productName}
@@ -141,7 +142,7 @@ export default async function CustomerPage({
                   ))}
                 </div>
                 {event.notes && (
-                  <p className="mt-1 text-xs text-gray-400 italic">{event.notes}</p>
+                  <p className="mt-1 text-xs text-gray-600 italic">{event.notes}</p>
                 )}
               </div>
             ))}
@@ -159,14 +160,14 @@ export default async function CustomerPage({
                 await resetCycle(customerId)
               }}
             >
-              <button
-                type="submit"
+              <ConfirmSubmitButton
+                confirmMessage={`Reset the current cycle for ${customer.name}? This deletes all pickups recorded for their current order — this can't be undone.`}
                 className="text-sm text-orange-500 hover:text-orange-700 underline"
               >
                 Reset current cycle
-              </button>
+              </ConfirmSubmitButton>
             </form>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-600 mt-1">
               Deletes all pickups for the current order and lets you reload a fresh one.
             </p>
           </div>
@@ -178,12 +179,12 @@ export default async function CustomerPage({
               await cancelSubscription(customerId)
             }}
           >
-            <button
-              type="submit"
+            <ConfirmSubmitButton
+              confirmMessage={`Mark ${customer.name}'s subscription as cancelled?`}
               className="text-sm text-red-500 hover:text-red-700 underline"
             >
               Mark subscription as cancelled
-            </button>
+            </ConfirmSubmitButton>
           </form>
         )}
       </section>
