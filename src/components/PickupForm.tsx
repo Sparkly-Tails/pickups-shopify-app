@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import Link from "next/link";
+import AuthLink from "@/components/AuthLink";
 import { IOrderItem } from "@/models/Customer";
 import { IPickupItem } from "@/models/PickupEvent";
 import { confirmPickup } from "@/app/actions/confirmPickup";
@@ -20,10 +20,12 @@ export default function PickupForm({
   customerId,
   customerEmail,
   remainingItems,
+  token,
 }: {
   customerId: string;
   customerEmail: string;
   remainingItems: IOrderItem[];
+  token: string;
 }) {
   const [items, setItems] = useState<ItemState[]>(
     remainingItems.flatMap((i) =>
@@ -141,9 +143,9 @@ export default function PickupForm({
             ? `Email sent to ${customerEmail}`
             : "Pickup saved (email not sent)"}
         </p>
-        <Link href="/" className="text-blue-600 text-sm">
+        <AuthLink href="/" token={token} className="text-blue-600 text-sm">
           ← Back to list
-        </Link>
+        </AuthLink>
       </div>
     );
   }

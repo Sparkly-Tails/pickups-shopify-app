@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { headers } from 'next/headers'
+import AuthLink from '@/components/AuthLink'
 import { version } from '../../package.json'
 import { connectDB } from '@/lib/mongodb'
 import { CustomerModel, ICustomer, IOrderItem } from '@/models/Customer'
@@ -18,6 +19,8 @@ function calcRemaining(orderItems: IOrderItem[], pickedItems: IPickupItem[]): nu
 }
 
 export default async function Home() {
+  const token = (await headers()).get('x-auth-token') ?? ''
+
   await connectDB()
 
   const customers = await CustomerModel.find({ status: 'active' }).lean()
@@ -58,9 +61,9 @@ export default async function Home() {
         <h1 className="text-2xl font-bold">
           Pickups <span className="text-xs font-normal text-gray-400">v{version}</span>
         </h1>
-        <Link href="/dashboard" className="text-sm text-blue-600">
+        <AuthLink href="/dashboard" token={token} className="text-sm text-blue-600">
           Dashboard →
-        </Link>
+        </AuthLink>
       </div>
 
       {inProgress.length > 0 && (
@@ -70,7 +73,7 @@ export default async function Home() {
           </h2>
           <div className="space-y-2">
             {inProgress.map(c => (
-              <CustomerRow key={String(c._id)} customer={c} />
+              <CustomerRow key={String(c._id)} customer={c} token={token} />
             ))}
           </div>
         </section>
@@ -83,7 +86,7 @@ export default async function Home() {
           </h2>
           <div className="space-y-2">
             {needNewCycle.map(c => (
-              <CustomerRow key={String(c._id)} customer={c} dim />
+              <CustomerRow key={String(c._id)} customer={c} dim token={token} />
             ))}
           </div>
         </section>
@@ -92,32 +95,28 @@ export default async function Home() {
       {inProgress.length === 0 && needNewCycle.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-500 mb-2">No active customers yet.</p>
-          <Link href="/customer/new" className="text-sm text-blue-600 hover:underline">
+          <AuthLink href="/customer/new" token={token} className="text-sm text-blue-600 hover:underline">
             Add your first customer →
-          </Link>
+          </AuthLink>
         </div>
       )}
 
-      <Link
+      <AuthLink
         href="/customer/new"
+        token={token}
         className="mt-6 block text-center border-2 border-dashed border-gray-300 rounded-xl p-4 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors"
       >
         + Add new customer
-      </Link>
-
-      {/* TEMPORARY diagnostic link — plain <a> (full page load, not RSC nav).
-          Remove once the App Bridge investigation is done. */}
-      <a href="/app-bridge-test" className="mt-4 block text-center text-xs text-gray-300">
-        App Bridge diagnostics
-      </a>
+      </AuthLink>
     </main>
   )
 }
 
-function CustomerRow({ customer, dim }: { customer: ICustomer; dim?: boolean }) {
+function CustomerRow({ customer, dim, token }: { customer: ICustomer; dim?: boolean; token: string }) {
   return (
-    <Link
+    <AuthLink
       href={`/customer/${customer._id}`}
+      token={token}
       className="block border rounded-xl p-4 bg-white dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors"
     >
       <div className="flex items-center justify-between gap-2">
@@ -131,6 +130,6 @@ function CustomerRow({ customer, dim }: { customer: ICustomer; dim?: boolean }) 
           </span>
         )}
       </div>
-    </Link>
+    </AuthLink>
   )
 }

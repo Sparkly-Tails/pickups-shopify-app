@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useAuthRouter } from '@/lib/useAuthRouter'
 import { addCustomerByEmail } from '@/app/actions/customerActions'
 
 export default function NewCustomerPage() {
-  const router = useRouter()
+  const router = useAuthRouter()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -31,7 +31,7 @@ export default function NewCustomerPage() {
   return (
     <main className="max-w-lg mx-auto p-4">
       <div className="flex items-center gap-3 mb-6">
-        <a href="/" className="text-blue-600 text-sm">← Back</a>
+        <button onClick={() => router.push('/')} className="text-blue-600 text-sm">← Back</button>
         <h1 className="text-xl font-bold">Add Customer</h1>
       </div>
 

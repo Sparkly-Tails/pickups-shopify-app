@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { headers } from 'next/headers'
+import AuthLink from '@/components/AuthLink'
 import { IPickupEvent } from '@/models/PickupEvent'
 
 async function getPickups(): Promise<IPickupEvent[]> {
@@ -10,13 +11,14 @@ async function getPickups(): Promise<IPickupEvent[]> {
 }
 
 export default async function Dashboard() {
+  const token = (await headers()).get('x-auth-token') ?? ''
   const pickups = await getPickups()
 
   return (
     <main className="max-w-2xl mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Link href="/" className="text-sm text-blue-600">← Pickups</Link>
+        <AuthLink href="/" token={token} className="text-sm text-blue-600">← Pickups</AuthLink>
       </div>
 
       {pickups.length === 0 && (

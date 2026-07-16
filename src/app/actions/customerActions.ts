@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
+import { redirectWithToken } from '@/lib/auth-redirect'
 import { connectDB } from '@/lib/mongodb'
 import { CustomerModel } from '@/models/Customer'
 import { PickupEventModel } from '@/models/PickupEvent'
@@ -72,5 +72,5 @@ export async function resetCycle(customerId: string): Promise<void> {
 export async function cancelSubscription(customerId: string): Promise<void> {
   await connectDB()
   await CustomerModel.updateOne({ _id: customerId }, { status: 'cancelled' })
-  redirect('/')
+  await redirectWithToken('/')
 }

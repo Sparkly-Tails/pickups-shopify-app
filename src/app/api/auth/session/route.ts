@@ -36,14 +36,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(startUrl)
   }
 
-  // App is installed — issue a session token in the URL and redirect within the
+  // App is installed — issue a token in the URL and redirect within the
   // iframe. Staying inside the iframe avoids Shopify admin intercepting any
   // cross-origin navigation and opening the app in a new window.
-  // The proxy picks up ?session=, sets the cookie, then does a same-origin
-  // redirect to / — Shopify admin does not intercept same-origin iframe navs.
+  // proxy.ts verifies ?stt= the same way it does for any other request —
+  // no cookie involved (see proxy.ts's module comment for why).
   console.log('[auth/session] app installed, issuing session for shop:', shop)
-  const sessionToken = await makeSessionToken(shop, secret)
+  const token = await makeSessionToken(shop, secret)
   const redirectUrl = new URL('/', req.url)
-  redirectUrl.searchParams.set('session', sessionToken)
+  redirectUrl.searchParams.set('stt', token)
   return NextResponse.redirect(redirectUrl)
 }

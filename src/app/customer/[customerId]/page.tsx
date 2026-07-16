@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
+import { headers } from 'next/headers'
+import AuthLink from '@/components/AuthLink'
 import { connectDB } from '@/lib/mongodb'
 import { CustomerModel, IOrderItem } from '@/models/Customer'
 import { PickupEventModel, IPickupItem } from '@/models/PickupEvent'
@@ -26,6 +27,7 @@ export default async function CustomerPage({
   params: Promise<{ customerId: string }>
 }) {
   const { customerId } = await params
+  const token = (await headers()).get('x-auth-token') ?? ''
   await connectDB()
 
   const customer = await CustomerModel.findById(customerId).lean()
@@ -56,7 +58,7 @@ export default async function CustomerPage({
     <main className="w-[70%] max-w-2xl mx-auto p-4">
       {/* Header */}
       <div className="flex items-center gap-3 mb-1">
-        <Link href="/" className="text-blue-600 text-sm">← Back</Link>
+        <AuthLink href="/" token={token} className="text-blue-600 text-sm">← Back</AuthLink>
         <h1 className="text-xl font-bold flex-1 text-gray-500">{customer.name}</h1>
         <span
           className={`text-xs px-2 py-1 rounded-full ${
@@ -79,6 +81,7 @@ export default async function CustomerPage({
           <PickupForm
             customerId={customerId}
             customerEmail={customer.email}
+            token={token}
             remainingItems={remainingItems.map(i => ({
               shopifyLineItemId: i.shopifyLineItemId,
               productName: i.productName,

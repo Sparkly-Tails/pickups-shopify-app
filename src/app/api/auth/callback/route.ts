@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyShopifyHmac, makeSessionToken } from '@/lib/shopify-auth'
+import { verifyShopifyHmac } from '@/lib/shopify-auth'
 import { connectDB } from '@/lib/mongodb'
 import { ShopifyTokenModel } from '@/models/ShopifyToken'
 
@@ -80,21 +80,11 @@ export async function GET(req: NextRequest) {
 
   console.log('[auth/callback] installation complete for shop:', shop)
 
-  // Issue a session cookie (SameSite=None so it travels into the Shopify
-  // admin iframe when the app is opened from there later).
-  const sessionToken = await makeSessionToken(shop, secret)
-  // Redirect to the Shopify admin. Staff can then open the app from
-  // the Apps section where it will load embedded.
+  // Redirect to the Shopify admin. Staff can then open the app from the
+  // Apps section, where it loads embedded and proxy.ts issues an auth
+  // token from the HMAC-signed load — no cookie needed (see proxy.ts's
+  // module comment for why this app doesn't use cookies at all).
   const adminUrl = `https://${shop}/admin`
   console.log('[auth/callback] redirecting to Shopify admin:', adminUrl)
-
-  const res = NextResponse.redirect(adminUrl)
-  res.cookies.set('__shopify_session', sessionToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    maxAge: 30 * 24 * 60 * 60, // 30 days — re-OAuth is rare for internal staff
-    path: '/',
-  })
-  return res
+  return NextResponse.redirect(adminUrl)
 }
