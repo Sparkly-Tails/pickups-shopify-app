@@ -85,13 +85,26 @@ export async function confirmPickup(
   const dateStr = new Date().toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
   })
-  const pickedSummary = input.items
+  const pickedLines = input.items
     .filter(i => i.status === 'picked' || i.status === 'swapped')
-    .map(i => `${i.qty}× ${i.replacement?.name ?? i.productName}`)
+    .map(i => `* ${i.qty}× ${i.replacement?.name ?? i.productName}`)
     .join('\n')
-  if (pickedSummary && !input.testEmail) {
+  const remainingLines = remaining
+    .map(i => `* ${i.qty}× ${i.productName}`)
+    .join('\n')
+  if (pickedLines && !input.testEmail) {
+    const note = [
+      `[${dateStr}]`,
+      'Picked up items today:',
+      '',
+      pickedLines,
+      '',
+      'Remaining items in the subscription:',
+      '',
+      remainingLines || '* None — cycle complete',
+    ].join('\n')
     try {
-      await appendOrderNote(customer.currentOrderId, `[${dateStr}] Picked up:\n${pickedSummary}`)
+      await appendOrderNote(customer.currentOrderId, note)
     } catch (err) {
       console.error('Shopify note error:', err)
     }
