@@ -85,24 +85,19 @@ export async function confirmPickup(
   const dateStr = new Date().toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric',
   })
-  const pickedLines = input.items
+  const pickedList = input.items
     .filter(i => i.status === 'picked' || i.status === 'swapped')
-    .map(i => `* ${i.qty}× ${i.replacement?.name ?? i.productName}`)
-    .join('\n')
-  const remainingLines = remaining
-    .map(i => `* ${i.qty}× ${i.productName}`)
-    .join('\n')
-  if (pickedLines && !input.testEmail) {
-    const note = [
-      `[${dateStr}]`,
-      'Picked up items today:',
-      '',
-      pickedLines,
-      '',
-      'Remaining items in the subscription:',
-      '',
-      remainingLines || '* None — cycle complete',
-    ].join('\n')
+    .map(i => `${i.qty}× ${i.replacement?.name ?? i.productName}`)
+    .join(', ')
+  const remainingList = remaining
+    .map(i => `${i.qty}× ${i.productName}`)
+    .join(', ')
+  if (pickedList && !input.testEmail) {
+    // Shopify's order-note timeline collapses \n into spaces regardless of
+    // what's sent via the API, so this stays a single readable sentence
+    // rather than a bulleted list (which would render as a run-on wall of
+    // asterisks — see confirmed community reports on this Admin UI behavior).
+    const note = `[${dateStr}] Picked up today: ${pickedList}. Remaining in the subscription: ${remainingList || 'none — cycle complete'}.`
     try {
       await appendOrderNote(customer.currentOrderId, note)
     } catch (err) {
